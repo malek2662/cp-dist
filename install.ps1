@@ -10,9 +10,9 @@ $DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.4/c
 $DIST_PASSWORD = 'Cl@wPr0xy$2026!SecureDist#K9x'
 
 # ─── Colors ───
-function Write-Success { param([string]$msg) Write-Host "✓ $msg" -ForegroundColor Green }
-function Write-Warn    { param([string]$msg) Write-Host "⚠ $msg" -ForegroundColor Yellow }
-function Write-Err     { param([string]$msg) Write-Host "✗ $msg" -ForegroundColor Red }
+function Write-Success { param([string]$msg) Write-Host "[OK]  $msg" -ForegroundColor Green }
+function Write-Warn    { param([string]$msg) Write-Host "[!!]  $msg" -ForegroundColor Yellow }
+function Write-Err     { param([string]$msg) Write-Host "[ERR] $msg" -ForegroundColor Red }
 function Write-Head    { param([string]$msg) Write-Host "`n$msg`n" -ForegroundColor Cyan }
 
 # ─── Banner ───
@@ -272,7 +272,7 @@ if ($Port -ne $DEFAULT_PORT) {
 # ─── Done ───
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
-Write-Host "  ✅ ClawProxy is installed and running!" -ForegroundColor Green
+Write-Host "  ClawProxy is installed and running!" -ForegroundColor Green
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
