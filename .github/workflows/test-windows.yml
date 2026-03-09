@@ -10,6 +10,9 @@ jobs:
   test-windows:
     runs-on: windows-latest
 
+    env:
+      CI: true
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -20,12 +23,16 @@ jobs:
 
       - name: Run installer
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\install.ps1
+        run: |
+          # Run directly in pwsh (don't launch powershell subprocess)
+          & .\install.ps1 -NonInteractive
 
       - name: Verify clawproxy installed
         shell: pwsh
         continue-on-error: true
         run: |
+          # Refresh PATH in this step
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
           $cmd = Get-Command clawproxy -ErrorAction SilentlyContinue
           if ($cmd) {
             Write-Host "[OK] clawproxy found at: $($cmd.Source)"
