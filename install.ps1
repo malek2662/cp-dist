@@ -1,27 +1,32 @@
-# ────────────────────────────────────────────────────────────
-# ClawProxy Installer — Windows PowerShell 5+
-# Usage: irm https://raw.githubusercontent.com/malek262/clawproxy-dist/main/install.ps1 | iex
-# ────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
+# ClawProxy Installer - Windows PowerShell 5+
+# Usage: irm https://raw.githubusercontent.com/malek2662/cp-dist/main/install.ps1 | iex
+# ---------------------------------------------------------------
+param(
+    [switch]$NonInteractive,
+    [int]$PortParam = 0
+)
+
 $ErrorActionPreference = "Stop"
 
-# ─── Config ───
-# ⚠️  UPDATE THESE before distributing:
+# --- Config ---
+# UPDATE THESE before distributing:
 $DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.4/clawproxy.tgz.enc"
 $DIST_PASSWORD = 'Cl@wPr0xy$2026!SecureDist#K9x'
 
-# ─── Colors ───
+# --- Colors ---
 function Write-Success { param([string]$msg) Write-Host "[OK]  $msg" -ForegroundColor Green }
 function Write-Warn    { param([string]$msg) Write-Host "[!!]  $msg" -ForegroundColor Yellow }
 function Write-Err     { param([string]$msg) Write-Host "[ERR] $msg" -ForegroundColor Red }
 function Write-Head    { param([string]$msg) Write-Host "`n$msg`n" -ForegroundColor Cyan }
 
-# ─── Banner ───
+# --- Banner ---
 Write-Host ""
-Write-Host "🐾 ClawProxy Installer" -ForegroundColor White
-Write-Host "   AI Routing Proxy — Multi-provider, Key Rotation, Dashboard" -ForegroundColor DarkGray
+Write-Host "  ClawProxy Installer" -ForegroundColor Cyan
+Write-Host "  AI Routing Proxy - Multi-provider, Key Rotation, Dashboard" -ForegroundColor DarkGray
 Write-Host ""
 
-# ─── Step 1: Check / Install Node.js ───
+# --- Step 1: Check / Install Node.js ---
 Write-Head "Checking prerequisites..."
 
 $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
@@ -86,15 +91,27 @@ if (-not $npmCmd) {
 $npmVersion = npm -v
 Write-Success "npm v$npmVersion detected"
 
-# ─── Step 2: Ask for PORT ───
+# --- Step 2: Ask for PORT ---
 Write-Head "Configuration"
 
 $DEFAULT_PORT = 3030
-$UserPort = Read-Host "  Enter port for ClawProxy (default: $DEFAULT_PORT)"
-if ([string]::IsNullOrWhiteSpace($UserPort)) {
+
+# Determine if we are in non-interactive mode (CI, piped, or explicit flag)
+$isNonInteractive = $NonInteractive -or $env:CI -or $env:CLAWPROXY_NONINTERACTIVE
+
+if ($PortParam -gt 0) {
+    $Port = $PortParam
+} elseif ($env:CLAWPROXY_PORT) {
+    $Port = [int]$env:CLAWPROXY_PORT
+} elseif ($isNonInteractive) {
     $Port = $DEFAULT_PORT
 } else {
-    $Port = [int]$UserPort
+    $UserPort = Read-Host "  Enter port for ClawProxy (default: $DEFAULT_PORT)"
+    if ([string]::IsNullOrWhiteSpace($UserPort)) {
+        $Port = $DEFAULT_PORT
+    } else {
+        $Port = [int]$UserPort
+    }
 }
 
 if ($Port -ne $DEFAULT_PORT) {
@@ -108,7 +125,7 @@ if ($Port -ne $DEFAULT_PORT) {
     Write-Success "Using default port: $Port"
 }
 
-# ─── Step 3: Download & Decrypt ClawProxy Package ───
+# --- Step 3: Download and Decrypt ClawProxy Package ---
 Write-Head "Downloading ClawProxy..."
 
 $tempDir = Join-Path $env:TEMP "clawproxy_install_$(Get-Random)"
@@ -129,41 +146,41 @@ Write-Success "Package downloaded"
 
 Write-Host "  Decrypting package..." -ForegroundColor DarkGray
 
-# Use Node.js crypto to decrypt (since Node.js is guaranteed to be installed)
-$decryptScript = @"
-const crypto = require('crypto');
-const fs = require('fs');
-
-const password = process.argv[2];
-const inputFile = process.argv[3];
-const outputFile = process.argv[4];
-
-const encData = fs.readFileSync(inputFile);
-
-// openssl enc format: Salted__<8 bytes salt><encrypted data>
-const header = encData.slice(0, 8).toString('utf8');
-if (header !== 'Salted__') {
-    console.error('Invalid encrypted file format');
-    process.exit(1);
-}
-
-const salt = encData.slice(8, 16);
-const encrypted = encData.slice(16);
-
-// Derive key and IV using PBKDF2 (matching openssl enc -pbkdf2 -iter 100000)
-const keyIv = crypto.pbkdf2Sync(password, salt, 100000, 48, 'sha256');
-const key = keyIv.slice(0, 32);
-const iv = keyIv.slice(32, 48);
-
-const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
-fs.writeFileSync(outputFile, decrypted);
-console.log('OK');
-"@
+# Build the Node.js decryption script content and write to file
+$decryptScriptLines = @(
+    "const crypto = require('crypto');"
+    "const fs = require('fs');"
+    ""
+    "const password = process.argv[2];"
+    "const inputFile = process.argv[3];"
+    "const outputFile = process.argv[4];"
+    ""
+    "const encData = fs.readFileSync(inputFile);"
+    ""
+    "// openssl enc format: Salted__<8 bytes salt><encrypted data>"
+    "const header = encData.slice(0, 8).toString('utf8');"
+    "if (header !== 'Salted__') {"
+    "    console.error('Invalid encrypted file format');"
+    "    process.exit(1);"
+    "}"
+    ""
+    "const salt = encData.slice(8, 16);"
+    "const encrypted = encData.slice(16);"
+    ""
+    "// Derive key and IV using PBKDF2 (matching openssl enc -pbkdf2 -iter 100000)"
+    "const keyIv = crypto.pbkdf2Sync(password, salt, 100000, 48, 'sha256');"
+    "const key = keyIv.slice(0, 32);"
+    "const iv = keyIv.slice(32, 48);"
+    ""
+    "const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);"
+    "const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);"
+    ""
+    "fs.writeFileSync(outputFile, decrypted);"
+    "console.log('OK');"
+)
 
 $decryptScriptFile = Join-Path $tempDir "decrypt.js"
-$decryptScript | Set-Content $decryptScriptFile -Encoding UTF8
+$decryptScriptLines | Set-Content $decryptScriptFile -Encoding UTF8
 
 try {
     $result = node $decryptScriptFile $DIST_PASSWORD $encryptedFile $decryptedFile 2>&1
@@ -177,7 +194,7 @@ try {
 }
 Write-Success "Package decrypted"
 
-# ─── Step 4: Install ClawProxy ───
+# --- Step 4: Install ClawProxy ---
 Write-Head "Installing ClawProxy..."
 
 # Backup existing database before npm install (npm replaces the entire package directory)
@@ -237,6 +254,11 @@ if ($dbBackup) {
 # Verify clawproxy command is available
 $clawCmd = Get-Command clawproxy -ErrorAction SilentlyContinue
 if (-not $clawCmd) {
+    # Try refreshing PATH first
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $clawCmd = Get-Command clawproxy -ErrorAction SilentlyContinue
+}
+if (-not $clawCmd) {
     Write-Err "clawproxy command not found after install."
     Write-Host ""
     Write-Host "  Make sure npm global bin is in your PATH:"
@@ -247,7 +269,7 @@ if (-not $clawCmd) {
 
 Write-Success "ClawProxy installed globally"
 
-# ─── Step 5: Install node-windows dependency ───
+# --- Step 5: Install node-windows dependency ---
 Write-Head "Installing Windows service dependency..."
 
 $clawDir = Split-Path (Split-Path (Get-Command clawproxy).Source)
@@ -260,7 +282,7 @@ Pop-Location
 
 Write-Success "node-windows installed"
 
-# ─── Step 6: Install as service ───
+# --- Step 6: Install as service ---
 Write-Head "Setting up Windows service..."
 
 if ($Port -ne $DEFAULT_PORT) {
@@ -269,11 +291,11 @@ if ($Port -ne $DEFAULT_PORT) {
     clawproxy install --no-open
 }
 
-# ─── Done ───
+# --- Done ---
 Write-Host ""
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
 Write-Host "  ClawProxy is installed and running!" -ForegroundColor Green
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
