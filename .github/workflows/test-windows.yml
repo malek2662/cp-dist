@@ -1,82 +1,59 @@
 name: Test Windows Installer
 
 on:
-  workflow_dispatch:  # تشغيل يدوي من الـ Actions tab
+  workflow_dispatch:
   push:
     paths:
-      - 'install.ps1'  # يشتغل تلقائي لما تعدّل السكريبت
+      - 'install.ps1'
 
 jobs:
   test-windows:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Step 1: تحقق من PowerShell version
       - name: PowerShell version
+        shell: pwsh
         run: $PSVersionTable
 
-      # Step 2: شغّل الإنستولر مع تمرير الباسورد كـ env variable
-      # لأن السكريبت عندك الباسورد hardcoded، هنا بنتيست النسخة المحلية
-      - name: Run installer (local script)
-        env:
-          DIST_PASSWORD: ${{ secrets.DIST_PASSWORD }}
-        run: |
-          # تشغيل السكريبت المحلي مباشرة بدل ما نجيبه من النت
-          # هذا أفضل للتيستينج لأنك تتحكم بالنسخة
-          powershell -ExecutionPolicy Bypass -File .\install.ps1
+      - name: Run installer
         shell: pwsh
-        # استمر حتى لو في خطأ عشان نشوف الـ output كامل
-        continue-on-error: true
+        run: powershell -ExecutionPolicy Bypass -File .\install.ps1
 
-      # Step 3: تحقق إذا clawproxy اتثبّت
-      - name: Verify installation
+      - name: Verify clawproxy installed
+        shell: pwsh
+        continue-on-error: true
         run: |
           $cmd = Get-Command clawproxy -ErrorAction SilentlyContinue
           if ($cmd) {
-            Write-Host "✅ clawproxy found at: $($cmd.Source)"
+            Write-Host "[OK] clawproxy found at: $($cmd.Source)"
             clawproxy --version
           } else {
-            Write-Host "❌ clawproxy NOT found"
-            # اطبع الـ npm global packages عشان نفهم شو صار
+            Write-Host "[ERR] clawproxy NOT found"
             npm list -g --depth=0
           }
-        shell: pwsh
-        continue-on-error: true
 
-      # Step 4: تحقق من الـ npm global bin path
-      - name: Debug npm paths
-        run: |
-          Write-Host "npm prefix: $(npm config get prefix)"
-          Write-Host "npm bin: $(npm bin -g)"
-          Write-Host "PATH entries:"
-          $env:PATH -split ';' | ForEach-Object { Write-Host "  $_" }
-        shell: pwsh
-        continue-on-error: true
-
-      # Step 5: تحقق من الـ Service
       - name: Check Windows Service
+        shell: pwsh
+        continue-on-error: true
         run: |
           $svc = Get-Service -Name "*claw*" -ErrorAction SilentlyContinue
           if ($svc) {
-            Write-Host "✅ Service found: $($svc.Name) — Status: $($svc.Status)"
+            Write-Host "[OK] Service found: $($svc.Name) - Status: $($svc.Status)"
           } else {
-            Write-Host "⚠️ No clawproxy service found"
+            Write-Host "[!!] No clawproxy service found"
           }
-        shell: pwsh
-        continue-on-error: true
 
-      # Step 6: تحقق إذا الـ port شغّال
-      - name: Check if server responding
-        run: |
-          Start-Sleep -Seconds 5  # أعطيه وقت يشتغل
-          try {
-            $response = Invoke-WebRequest -Uri "http://localhost:3030" -TimeoutSec 5 -UseBasicParsing
-            Write-Host "✅ Server responding! Status: $($response.StatusCode)"
-          } catch {
-            Write-Host "❌ Server not responding: $_"
-          }
+      - name: Check server responding
         shell: pwsh
         continue-on-error: true
+        run: |
+          Start-Sleep -Seconds 5
+          try {
+            $r = Invoke-WebRequest -Uri "http://localhost:3030" -TimeoutSec 5 -UseBasicParsing
+            Write-Host "[OK] Server responding! Status: $($r.StatusCode)"
+          } catch {
+            Write-Host "[ERR] Server not responding: $_"
+          }
