@@ -269,6 +269,36 @@ if (-not $clawCmd) {
 
 Write-Success "ClawProxy installed globally"
 
+# --- Step 4.5: Copy Documentation to User Documents ---
+Write-Head "Setting up Documentation..."
+
+$docsDir = Join-Path $HOME "Documents\ClawProxy Documentation"
+if (-not (Test-Path (Join-Path $HOME "Documents"))) {
+    $docsDir = Join-Path $HOME "ClawProxy-Documentation"
+}
+New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
+
+if ($clawDir -and (Test-Path $clawDir)) {
+    function Copy-Safe {
+        param($file, $dest)
+        if (Test-Path $file) {
+            Copy-Item $file $dest -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Copy-Safe (Join-Path $clawDir "README.md") $docsDir
+    Copy-Safe (Join-Path $clawDir "QUICKSTART.md") $docsDir
+    Copy-Safe (Join-Path $clawDir "QUICKSTART.pdf") $docsDir
+    Copy-Safe (Join-Path $clawDir "OPENCLAW_PROVIDERS.md") $docsDir
+    Copy-Safe (Join-Path $clawDir "OPENCLAW_PROVIDERS.pdf") $docsDir
+    Copy-Safe (Join-Path $clawDir "ClawProxy-Knowledge-Base.md") $docsDir
+    Copy-Safe (Join-Path $clawDir "assets") $docsDir
+
+    Write-Success "Documentation copied to $docsDir"
+} else {
+    Write-Warn "Could not find ClawProxy directory to copy documentation."
+}
+
 # --- Step 5: Install node-windows dependency ---
 Write-Head "Installing Windows service dependency..."
 
@@ -299,6 +329,8 @@ Write-Host "=============================================" -ForegroundColor Gree
 Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  " -NoNewline; Write-Host " Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy Documentation' folder in your Documents!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Manage with:" -ForegroundColor DarkGray
 Write-Host "    clawproxy status"
