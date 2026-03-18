@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 # --- Config ---
 # UPDATE THESE before distributing:
-$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.4/clawproxy.tgz.enc"
+$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.6/clawproxy.tgz.enc"
 $DIST_PASSWORD = 'Cl@wPr0xy$2026!SecureDist#K9x'
 
 # --- Colors ---
@@ -330,7 +330,7 @@ Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  " -NoNewline; Write-Host " Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy Documentation' folder in your Documents!" -ForegroundColor Green
+Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy Documentation' folder in your Documents!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Manage with:" -ForegroundColor DarkGray
 Write-Host "    clawproxy status"
