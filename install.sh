@@ -8,7 +8,7 @@ set -o pipefail
 
 # ─── Config ───
 # ⚠️  UPDATE THESE before distributing:
-DOWNLOAD_URL="https://github.com/malek2662/cp-dist/releases/download/v1.0.4/clawproxy.tgz.enc"
+DOWNLOAD_URL="https://github.com/malek2662/cp-dist/releases/download/v1.0.6/clawproxy.tgz.enc"
 DIST_PASSWORD='Cl@wPr0xy$2026!SecureDist#K9x'
 
 # ─── Colors ───
@@ -375,7 +375,7 @@ echo ""
 echo -e "  ${BOLD}Dashboard:${NC}  ${CYAN}http://localhost:${PORT}${NC}"
 echo -e "  ${BOLD}Proxy:${NC}      ${CYAN}http://localhost:${PORT}/proxy/{provider}/v1${NC}"
 echo ""
-echo -e "  ${BOLD} Knowledge Base:${NC} ${GREEN}We created a 'ClawProxy Documentation' folder in your Documents!${NC}"
+echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawProxy Documentation' folder in your Documents!${NC}"
 echo ""
 echo -e "  ${DIM}Manage with:${NC}"
 echo -e "    clawproxy status"
