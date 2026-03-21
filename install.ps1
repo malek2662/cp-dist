@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 # --- Config ---
 # UPDATE THESE before distributing:
-$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.6/clawproxy.tgz.enc"
+$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/download/v1.0.8/clawproxy.tgz.enc"
 $DIST_PASSWORD = 'Cl@wPr0xy$2026!SecureDist#K9x'
 
 # --- Colors ---
