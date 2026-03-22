@@ -12,14 +12,11 @@ jobs:
 
     env:
       CI: true
+      CLAWPROXY_HOSTNAME: "GH-Actions-Win-CI"
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
-      - name: Set CI hostname
-        shell: pwsh
-        run: Rename-Computer -NewName "GH-Actions-Win-CI" -Force
 
       - name: PowerShell version
         shell: pwsh
@@ -32,8 +29,8 @@ jobs:
           & .\install.ps1 -NonInteractive
 
       - name: Verify clawproxy installed
-        shell: pwsh
         continue-on-error: true
+        shell: pwsh
         run: |
           # Refresh PATH in this step
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
@@ -47,24 +44,46 @@ jobs:
           }
 
       - name: Check Windows Service
-        shell: pwsh
         continue-on-error: true
+        shell: pwsh
         run: |
-          $svc = Get-Service -Name "*claw*" -ErrorAction SilentlyContinue
+          # Wait for service to register (node-windows can be slow)
+          $maxWait = 30
+          $waited = 0
+          $svc = $null
+          while ($waited -lt $maxWait) {
+            $svc = Get-Service -Name "*claw*" -ErrorAction SilentlyContinue
+            if ($svc) { break }
+            Start-Sleep -Seconds 2
+            $waited += 2
+            Write-Host "  Waiting for service... ($waited/$maxWait sec)"
+          }
           if ($svc) {
             Write-Host "[OK] Service found: $($svc.Name) - Status: $($svc.Status)"
           } else {
-            Write-Host "[!!] No clawproxy service found"
+            Write-Host "[!!] No clawproxy service found after ${maxWait}s"
           }
 
       - name: Check server responding
-        shell: pwsh
         continue-on-error: true
+        shell: pwsh
         run: |
-          Start-Sleep -Seconds 5
-          try {
-            $r = Invoke-WebRequest -Uri "http://localhost:3030" -TimeoutSec 5 -UseBasicParsing
-            Write-Host "[OK] Server responding! Status: $($r.StatusCode)"
-          } catch {
-            Write-Host "[ERR] Server not responding: $_"
+          # Retry loop — server may take time to start
+          $maxAttempts = 6
+          $attempt = 0
+          $success = $false
+          while ($attempt -lt $maxAttempts) {
+            $attempt++
+            Start-Sleep -Seconds 5
+            try {
+              $r = Invoke-WebRequest -Uri "http://localhost:3030" -TimeoutSec 5 -UseBasicParsing
+              Write-Host "[OK] Server responding! Status: $($r.StatusCode)"
+              $success = $true
+              break
+            } catch {
+              Write-Host "  Attempt $attempt/$maxAttempts - not yet responding..."
+            }
+          }
+          if (-not $success) {
+            Write-Host "[ERR] Server not responding after $maxAttempts attempts"
           }
