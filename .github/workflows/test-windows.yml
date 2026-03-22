@@ -17,6 +17,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set CI hostname
+        shell: pwsh
+        run: Rename-Computer -NewName "GH-Actions-Win-CI" -Force
+
       - name: PowerShell version
         shell: pwsh
         run: $PSVersionTable

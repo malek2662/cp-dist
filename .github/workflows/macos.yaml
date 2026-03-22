@@ -17,6 +17,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set CI hostname
+        run: sudo scutil --set HostName "GH-Actions-macOS-CI"
+
       - name: Install dependencies
         run: |
           # Node 22 is required. macos-latest usually has Node installed, but let's ensure npm is ready.
