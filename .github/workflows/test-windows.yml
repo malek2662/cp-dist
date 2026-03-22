@@ -18,6 +18,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set CI hostname (Machine-level so Windows Service inherits it)
+        shell: pwsh
+        run: |
+          [System.Environment]::SetEnvironmentVariable("CLAWPROXY_HOSTNAME", "GH-Actions-Win-CI", "Machine")
+          Write-Host "[OK] CLAWPROXY_HOSTNAME set at Machine level"
+
       - name: PowerShell version
         shell: pwsh
         run: $PSVersionTable
