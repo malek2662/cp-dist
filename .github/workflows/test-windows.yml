@@ -43,7 +43,7 @@ jobs:
             npm list -g --depth=0
           }
 
-      - name: Check Windows Service
+      - name: Check and start Windows Service
         continue-on-error: true
         shell: pwsh
         run: |
@@ -60,8 +60,42 @@ jobs:
           }
           if ($svc) {
             Write-Host "[OK] Service found: $($svc.Name) - Status: $($svc.Status)"
+            # If service registered but not running, try to start it
+            if ($svc.Status -ne 'Running') {
+              Write-Host "  Attempting to start service..."
+              try {
+                Start-Service -Name $svc.Name
+                Start-Sleep -Seconds 3
+                $svc = Get-Service -Name $svc.Name
+                Write-Host "[OK] Service status: $($svc.Status)"
+              } catch {
+                Write-Host "[!!] Could not start service: $_"
+                Write-Host "  Falling back to direct process start..."
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                $globalPrefix = (npm config get prefix).Trim()
+                $entryPoint = Join-Path $globalPrefix "node_modules\clawproxy\backend\dist\index.js"
+                if (Test-Path $entryPoint) {
+                  Start-Process -FilePath "node" -ArgumentList $entryPoint -WindowStyle Hidden -PassThru
+                  Write-Host "[OK] Started ClawProxy directly as process"
+                  Start-Sleep -Seconds 5
+                } else {
+                  Write-Host "[ERR] Entry point not found: $entryPoint"
+                }
+              }
+            }
           } else {
             Write-Host "[!!] No clawproxy service found after ${maxWait}s"
+            Write-Host "  Falling back to direct process start..."
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            $globalPrefix = (npm config get prefix).Trim()
+            $entryPoint = Join-Path $globalPrefix "node_modules\clawproxy\backend\dist\index.js"
+            if (Test-Path $entryPoint) {
+              Start-Process -FilePath "node" -ArgumentList $entryPoint -WindowStyle Hidden -PassThru
+              Write-Host "[OK] Started ClawProxy directly as process"
+              Start-Sleep -Seconds 5
+            } else {
+              Write-Host "[ERR] Entry point not found: $entryPoint"
+            }
           }
 
       - name: Check server responding
