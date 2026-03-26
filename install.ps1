@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------
 # ClawProxy Installer - Windows PowerShell 5+
-# Usage: irm https://raw.githubusercontent.com/malek2662/cp-dist/main/install.ps1 | iex
+# Usage: irm https://get.clawproxy.qzz.io/install.ps1 | iex
 # ---------------------------------------------------------------
 param(
     [switch]$NonInteractive,

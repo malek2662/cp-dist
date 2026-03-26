@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ────────────────────────────────────────────────────────────
 # ClawProxy Installer — Linux & macOS
-# Usage: curl -fsSL https://raw.githubusercontent.com/malek262/clawproxy-dist/main/install.sh | bash
+# Usage: curl -fsSL https://get.clawproxy.qzz.io/install.sh | bash
 # ────────────────────────────────────────────────────────────
 set -e
 set -o pipefail
