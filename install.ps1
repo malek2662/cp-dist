@@ -272,7 +272,7 @@ Write-Success "ClawProxy installed globally"
 # --- Step 4.5: Copy Documentation to User Documents ---
 Write-Head "Setting up Documentation..."
 
-$docsDir = Join-Path $HOME "Documents\ClawProxy Documentation"
+$docsDir = Join-Path $HOME "Documents\ClawProxy-Documentation"
 if (-not (Test-Path (Join-Path $HOME "Documents"))) {
     $docsDir = Join-Path $HOME "ClawProxy-Documentation"
 }
@@ -286,15 +286,31 @@ if ($clawDir -and (Test-Path $clawDir)) {
         }
     }
 
-    Copy-Safe (Join-Path $clawDir "README.md") $docsDir
-    Copy-Safe (Join-Path $clawDir "QUICKSTART.md") $docsDir
-    Copy-Safe (Join-Path $clawDir "QUICKSTART.pdf") $docsDir
-    Copy-Safe (Join-Path $clawDir "OPENCLAW_PROVIDERS.md") $docsDir
-    Copy-Safe (Join-Path $clawDir "OPENCLAW_PROVIDERS.pdf") $docsDir
-    Copy-Safe (Join-Path $clawDir "ClawProxy-Knowledge-Base.md") $docsDir
+    $docFiles = @(
+        "README.md",
+        "QUICKSTART.md",
+        "QUICKSTART.pdf",
+        "OPENCLAW_PROVIDERS.md",
+        "OPENCLAW_PROVIDERS.pdf",
+        "ClawProxy-Knowledge-Base.md",
+        "TROUBLESHOOTING.md",
+        "SETTINGS_REFERENCE.md",
+        "HOW_TO_GUIDES.md",
+        "FAQ.md",
+        "COMMANDS.md"
+    )
+    foreach ($f in $docFiles) {
+        Copy-Safe (Join-Path $clawDir $f) $docsDir
+    }
     Copy-Safe (Join-Path $clawDir "assets") $docsDir
 
     Write-Success "Documentation copied to $docsDir"
+
+    # Remove doc files from install directory (keep only in Documentation folder)
+    foreach ($f in $docFiles) {
+        Remove-Item (Join-Path $clawDir $f) -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item (Join-Path $clawDir "assets") -Recurse -Force -ErrorAction SilentlyContinue
 } else {
     Write-Warn "Could not find ClawProxy directory to copy documentation."
 }
@@ -330,7 +346,7 @@ Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy Documentation' folder in your Documents!" -ForegroundColor Green
+Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy-Documentation' folder in your Documents!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Manage with:" -ForegroundColor DarkGray
 Write-Host "    clawproxy status"

@@ -333,7 +333,7 @@ info "ClawProxy installed globally"
 # ─── Step 4.5: Copy Documentation to User Documents ───
 heading "Setting up Documentation..."
 
-DOCS_DIR="$HOME/Documents/ClawProxy Documentation"
+DOCS_DIR="$HOME/Documents/ClawProxy-Documentation"
 if [ ! -d "$HOME/Documents" ]; then
     DOCS_DIR="$HOME/ClawProxy-Documentation"
 fi
@@ -342,16 +342,33 @@ mkdir -p "$DOCS_DIR"
 if [ -n "$NPM_PREFIX" ]; then
     CLAWPROXY_DIR="${NPM_PREFIX}/lib/node_modules/clawproxy"
     if [ -d "$CLAWPROXY_DIR" ]; then
-        cp "$CLAWPROXY_DIR/README.md" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/QUICKSTART.md" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/QUICKSTART.pdf" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/OPENCLAW_PROVIDERS.md" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/OPENCLAW_PROVIDERS.pdf" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/ClawProxy-Knowledge-Base.md" "$DOCS_DIR/" 2>/dev/null || true
+        # Documentation files to copy
+        DOC_FILES=(
+            "README.md"
+            "QUICKSTART.md"
+            "QUICKSTART.pdf"
+            "OPENCLAW_PROVIDERS.md"
+            "OPENCLAW_PROVIDERS.pdf"
+            "ClawProxy-Knowledge-Base.md"
+            "TROUBLESHOOTING.md"
+            "SETTINGS_REFERENCE.md"
+            "HOW_TO_GUIDES.md"
+            "FAQ.md"
+            "COMMANDS.md"
+        )
+        for f in "${DOC_FILES[@]}"; do
+            cp "$CLAWPROXY_DIR/$f" "$DOCS_DIR/" 2>/dev/null || true
+        done
         if [ -d "$CLAWPROXY_DIR/assets" ]; then
             cp -r "$CLAWPROXY_DIR/assets" "$DOCS_DIR/" 2>/dev/null || true
         fi
         info "Documentation copied to ${DOCS_DIR}"
+
+        # Remove doc files from install directory (keep only in Documentation folder)
+        for f in "${DOC_FILES[@]}"; do
+            rm -f "$CLAWPROXY_DIR/$f" 2>/dev/null || true
+        done
+        rm -rf "$CLAWPROXY_DIR/assets" 2>/dev/null || true
     else
         warn "Could not find ClawProxy directory to copy documentation."
     fi
@@ -375,7 +392,7 @@ echo ""
 echo -e "  ${BOLD}Dashboard:${NC}  ${CYAN}http://localhost:${PORT}${NC}"
 echo -e "  ${BOLD}Proxy:${NC}      ${CYAN}http://localhost:${PORT}/proxy/{provider}/v1${NC}"
 echo ""
-echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawProxy Documentation' folder in your Documents!${NC}"
+echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawProxy-Documentation' folder in your Documents!${NC}"
 echo ""
 echo -e "  ${DIM}Manage with:${NC}"
 echo -e "    clawproxy status"
