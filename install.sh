@@ -383,11 +383,3 @@ echo -e "    clawproxy restart"
 echo -e "    clawproxy logs"
 echo -e "    clawproxy uninstall"
 echo ""
-
-# Open dashboard in browser
-DASHBOARD_URL="http://localhost:${PORT}"
-if [ "$(uname -s)" = "Darwin" ]; then
-    open "$DASHBOARD_URL" 2>/dev/null || true
-else
-    xdg-open "$DASHBOARD_URL" 2>/dev/null || true
-fi

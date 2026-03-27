@@ -334,6 +334,3 @@ Write-Host "    clawproxy restart"
 Write-Host "    clawproxy logs"
 Write-Host "    clawproxy uninstall"
 Write-Host ""
-
-# Open dashboard in browser
-Start-Process "http://localhost:$Port" -ErrorAction SilentlyContinue
