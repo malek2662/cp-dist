@@ -278,41 +278,20 @@ if (-not (Test-Path (Join-Path $HOME "Documents"))) {
 }
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
 
-if ($clawDir -and (Test-Path $clawDir)) {
-    function Copy-Safe {
-        param($file, $dest)
-        if (Test-Path $file) {
-            Copy-Item $file $dest -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    $docFiles = @(
-        "README.md",
-        "QUICKSTART.md",
-        "QUICKSTART.pdf",
-        "OPENCLAW_PROVIDERS.md",
-        "OPENCLAW_PROVIDERS.pdf",
-        "ClawProxy-Knowledge-Base.md",
-        "TROUBLESHOOTING.md",
-        "SETTINGS_REFERENCE.md",
-        "HOW_TO_GUIDES.md",
-        "FAQ.md",
-        "COMMANDS.md"
-    )
-    foreach ($f in $docFiles) {
-        Copy-Safe (Join-Path $clawDir $f) $docsDir
-    }
-    Copy-Safe (Join-Path $clawDir "assets") $docsDir
+if ($clawDir -and (Test-Path (Join-Path $clawDir "Docs"))) {
+    # Copy md and pdf directories
+    $srcDocs = Join-Path $clawDir "Docs"
+    if (Test-Path (Join-Path $srcDocs "md"))  { Copy-Item (Join-Path $srcDocs "md")  $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path (Join-Path $srcDocs "pdf")) { Copy-Item (Join-Path $srcDocs "pdf") $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path (Join-Path $clawDir "README.md")) { Copy-Item (Join-Path $clawDir "README.md") $docsDir -Force -ErrorAction SilentlyContinue }
 
     Write-Success "Documentation copied to $docsDir"
 
-    # Remove doc files from install directory (keep only in Documentation folder)
-    foreach ($f in $docFiles) {
-        Remove-Item (Join-Path $clawDir $f) -Force -ErrorAction SilentlyContinue
-    }
-    Remove-Item (Join-Path $clawDir "assets") -Recurse -Force -ErrorAction SilentlyContinue
+    # Remove docs from install directory (keep only in Documentation folder)
+    Remove-Item (Join-Path $clawDir "Docs") -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $clawDir "README.md") -Force -ErrorAction SilentlyContinue
 } else {
-    Write-Warn "Could not find ClawProxy directory to copy documentation."
+    Write-Warn "Could not find ClawProxy documentation directory."
 }
 
 # --- Step 5: Install node-windows dependency ---
@@ -355,3 +334,6 @@ Write-Host "    clawproxy restart"
 Write-Host "    clawproxy logs"
 Write-Host "    clawproxy uninstall"
 Write-Host ""
+
+# Open dashboard in browser
+Start-Process "http://localhost:$Port" -ErrorAction SilentlyContinue

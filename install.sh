@@ -341,36 +341,18 @@ mkdir -p "$DOCS_DIR"
 
 if [ -n "$NPM_PREFIX" ]; then
     CLAWPROXY_DIR="${NPM_PREFIX}/lib/node_modules/clawproxy"
-    if [ -d "$CLAWPROXY_DIR" ]; then
-        # Documentation files to copy
-        DOC_FILES=(
-            "README.md"
-            "QUICKSTART.md"
-            "QUICKSTART.pdf"
-            "OPENCLAW_PROVIDERS.md"
-            "OPENCLAW_PROVIDERS.pdf"
-            "ClawProxy-Knowledge-Base.md"
-            "TROUBLESHOOTING.md"
-            "SETTINGS_REFERENCE.md"
-            "HOW_TO_GUIDES.md"
-            "FAQ.md"
-            "COMMANDS.md"
-        )
-        for f in "${DOC_FILES[@]}"; do
-            cp "$CLAWPROXY_DIR/$f" "$DOCS_DIR/" 2>/dev/null || true
-        done
-        if [ -d "$CLAWPROXY_DIR/assets" ]; then
-            cp -r "$CLAWPROXY_DIR/assets" "$DOCS_DIR/" 2>/dev/null || true
-        fi
+    if [ -d "$CLAWPROXY_DIR/Docs" ]; then
+        # Copy md and pdf directories
+        cp -r "$CLAWPROXY_DIR/Docs/md" "$DOCS_DIR/" 2>/dev/null || true
+        cp -r "$CLAWPROXY_DIR/Docs/pdf" "$DOCS_DIR/" 2>/dev/null || true
+        cp "$CLAWPROXY_DIR/README.md" "$DOCS_DIR/" 2>/dev/null || true
         info "Documentation copied to ${DOCS_DIR}"
 
-        # Remove doc files from install directory (keep only in Documentation folder)
-        for f in "${DOC_FILES[@]}"; do
-            rm -f "$CLAWPROXY_DIR/$f" 2>/dev/null || true
-        done
-        rm -rf "$CLAWPROXY_DIR/assets" 2>/dev/null || true
+        # Remove docs from install directory (keep only in Documentation folder)
+        rm -rf "$CLAWPROXY_DIR/Docs" 2>/dev/null || true
+        rm -f "$CLAWPROXY_DIR/README.md" 2>/dev/null || true
     else
-        warn "Could not find ClawProxy directory to copy documentation."
+        warn "Could not find ClawProxy documentation directory."
     fi
 fi
 
@@ -401,3 +383,11 @@ echo -e "    clawproxy restart"
 echo -e "    clawproxy logs"
 echo -e "    clawproxy uninstall"
 echo ""
+
+# Open dashboard in browser
+DASHBOARD_URL="http://localhost:${PORT}"
+if [ "$(uname -s)" = "Darwin" ]; then
+    open "$DASHBOARD_URL" 2>/dev/null || true
+else
+    xdg-open "$DASHBOARD_URL" 2>/dev/null || true
+fi
