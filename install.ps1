@@ -209,6 +209,8 @@ if (Test-Path (Join-Path $clawDir "clawproxy.db")) {
     Copy-Item (Join-Path $clawDir "clawproxy.db") $dbBackup -Force -ErrorAction SilentlyContinue
     Copy-Item (Join-Path $clawDir "clawproxy.db-wal") $dbBackup -Force -ErrorAction SilentlyContinue
     Copy-Item (Join-Path $clawDir "clawproxy.db-shm") $dbBackup -Force -ErrorAction SilentlyContinue
+    # Backup state file (activation/version tracking)
+    Copy-Item (Join-Path $clawDir ".clawproxy-state") $dbBackup -Force -ErrorAction SilentlyContinue
     Write-Success "Backed up existing database"
 }
 # Check backend-level DB
@@ -242,6 +244,8 @@ if ($dbBackup) {
         Copy-Item (Join-Path $dbBackup "clawproxy.db-shm") (Join-Path $clawDir "clawproxy.db-shm") -Force -ErrorAction SilentlyContinue
         Write-Success "Restored existing database"
     }
+    # Restore state file silently (activation/version tracking — internal, not shown to user)
+    Copy-Item (Join-Path $dbBackup ".clawproxy-state") (Join-Path $clawDir ".clawproxy-state") -Force -ErrorAction SilentlyContinue
     if (Test-Path (Join-Path $dbBackup "backend_clawproxy.db")) {
         Copy-Item (Join-Path $dbBackup "backend_clawproxy.db") (Join-Path $clawDir "backend\clawproxy.db") -Force -ErrorAction SilentlyContinue
         Copy-Item (Join-Path $dbBackup "backend_clawproxy.db-wal") (Join-Path $clawDir "backend\clawproxy.db-wal") -Force -ErrorAction SilentlyContinue

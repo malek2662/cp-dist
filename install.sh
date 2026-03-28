@@ -275,6 +275,8 @@ if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWPROXY_DIR}/clawproxy.db" ]; then
     # Also backup WAL/SHM files if they exist
     cp "${CLAWPROXY_DIR}/clawproxy.db-wal" "$DB_BACKUP/" 2>/dev/null || true
     cp "${CLAWPROXY_DIR}/clawproxy.db-shm" "$DB_BACKUP/" 2>/dev/null || true
+    # Backup state file (activation/version tracking)
+    cp "${CLAWPROXY_DIR}/.clawproxy-state" "$DB_BACKUP/" 2>/dev/null || true
 fi
 # Also check backend directory
 if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWPROXY_DIR}/backend/clawproxy.db" ]; then
@@ -301,6 +303,8 @@ if [ -n "$DB_BACKUP" ]; then
         cp "$DB_BACKUP/clawproxy.db-shm" "${CLAWPROXY_DIR}/clawproxy.db-shm" 2>/dev/null || true
         info "Restored existing database"
     fi
+    # Restore state file silently (activation/version tracking — internal, not shown to user)
+    cp "$DB_BACKUP/.clawproxy-state" "${CLAWPROXY_DIR}/.clawproxy-state" 2>/dev/null || true
     if [ -f "$DB_BACKUP/backend_clawproxy.db" ]; then
         cp "$DB_BACKUP/backend_clawproxy.db" "${CLAWPROXY_DIR}/backend/clawproxy.db" 2>/dev/null
         cp "$DB_BACKUP/backend_clawproxy.db-wal" "${CLAWPROXY_DIR}/backend/clawproxy.db-wal" 2>/dev/null || true
