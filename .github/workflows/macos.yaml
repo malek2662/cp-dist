@@ -12,7 +12,7 @@ jobs:
 
     env:
       CI: true
-      CLAWPROXY_HOSTNAME: "GH-Actions-macOS-CI"
+      CLAWROUTER_HOSTNAME: "GH-Actions-macOS-CI"
 
     steps:
       - name: Checkout repo
@@ -33,26 +33,26 @@ jobs:
           # The script reads from /dev/tty or /dev/stdin. In CI, read fails and defaults to 3030.
           ./install.sh
 
-      - name: Verify clawproxy installed
+      - name: Verify clawrouter installed
         continue-on-error: true
         run: |
           # Add npm global bin to PATH
           export PATH="$(npm config get prefix)/bin:$PATH"
 
-          if command -v clawproxy >/dev/null 2>&1; then
-            echo "[OK] clawproxy found at: $(command -v clawproxy)"
-            clawproxy --version
+          if command -v clawrouter >/dev/null 2>&1; then
+            echo "[OK] clawrouter found at: $(command -v clawrouter)"
+            clawrouter --version
           else
-            echo "[ERR] clawproxy NOT found"
+            echo "[ERR] clawrouter NOT found"
             npm list -g --depth=0
             exit 1
           fi
 
-      - name: Check clawproxy service status
+      - name: Check clawrouter service status
         continue-on-error: true
         run: |
           export PATH="$(npm config get prefix)/bin:$PATH"
-          clawproxy status
+          clawrouter status
 
       - name: Check server responding
         continue-on-error: true

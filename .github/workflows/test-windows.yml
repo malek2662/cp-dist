@@ -12,7 +12,7 @@ jobs:
 
     env:
       CI: true
-      CLAWPROXY_HOSTNAME: "GH-Actions-Win-CI"
+      CLAWROUTER_HOSTNAME: "GH-Actions-Win-CI"
 
     steps:
       - name: Checkout repo
@@ -21,8 +21,8 @@ jobs:
       - name: Set CI hostname (Machine-level so Windows Service inherits it)
         shell: pwsh
         run: |
-          [System.Environment]::SetEnvironmentVariable("CLAWPROXY_HOSTNAME", "GH-Actions-Win-CI", "Machine")
-          Write-Host "[OK] CLAWPROXY_HOSTNAME set at Machine level"
+          [System.Environment]::SetEnvironmentVariable("CLAWROUTER_HOSTNAME", "GH-Actions-Win-CI", "Machine")
+          Write-Host "[OK] CLAWROUTER_HOSTNAME set at Machine level"
 
       - name: PowerShell version
         shell: pwsh
@@ -34,18 +34,18 @@ jobs:
           # Run directly in pwsh (don't launch powershell subprocess)
           & .\install.ps1 -NonInteractive
 
-      - name: Verify clawproxy installed
+      - name: Verify clawrouter installed
         continue-on-error: true
         shell: pwsh
         run: |
           # Refresh PATH in this step
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-          $cmd = Get-Command clawproxy -ErrorAction SilentlyContinue
+          $cmd = Get-Command clawrouter -ErrorAction SilentlyContinue
           if ($cmd) {
-            Write-Host "[OK] clawproxy found at: $($cmd.Source)"
-            clawproxy --version
+            Write-Host "[OK] clawrouter found at: $($cmd.Source)"
+            clawrouter --version
           } else {
-            Write-Host "[ERR] clawproxy NOT found"
+            Write-Host "[ERR] clawrouter NOT found"
             npm list -g --depth=0
           }
 
@@ -79,10 +79,10 @@ jobs:
                 Write-Host "  Falling back to direct process start..."
                 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
                 $globalPrefix = (npm config get prefix).Trim()
-                $entryPoint = Join-Path $globalPrefix "node_modules\clawproxy\backend\dist\index.js"
+                $entryPoint = Join-Path $globalPrefix "node_modules\clawrouter\backend\dist\index.js"
                 if (Test-Path $entryPoint) {
                   Start-Process -FilePath "node" -ArgumentList $entryPoint -WindowStyle Hidden -PassThru
-                  Write-Host "[OK] Started ClawProxy directly as process"
+                  Write-Host "[OK] Started ClawRouter directly as process"
                   Start-Sleep -Seconds 5
                 } else {
                   Write-Host "[ERR] Entry point not found: $entryPoint"
@@ -90,14 +90,14 @@ jobs:
               }
             }
           } else {
-            Write-Host "[!!] No clawproxy service found after ${maxWait}s"
+            Write-Host "[!!] No clawrouter service found after ${maxWait}s"
             Write-Host "  Falling back to direct process start..."
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             $globalPrefix = (npm config get prefix).Trim()
-            $entryPoint = Join-Path $globalPrefix "node_modules\clawproxy\backend\dist\index.js"
+            $entryPoint = Join-Path $globalPrefix "node_modules\clawrouter\backend\dist\index.js"
             if (Test-Path $entryPoint) {
               Start-Process -FilePath "node" -ArgumentList $entryPoint -WindowStyle Hidden -PassThru
-              Write-Host "[OK] Started ClawProxy directly as process"
+              Write-Host "[OK] Started ClawRouter directly as process"
               Start-Sleep -Seconds 5
             } else {
               Write-Host "[ERR] Entry point not found: $entryPoint"

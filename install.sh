@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ────────────────────────────────────────────────────────────
-# ClawProxy Installer — Linux & macOS
-# Usage: curl -fsSL https://get.clawproxy.qzz.io/install.sh | bash
+# ClawRouter Installer — Linux & macOS
+# Usage: curl -fsSL https://get.clawrouter.qzz.io/install.sh | bash
 # ────────────────────────────────────────────────────────────
 set -e
 set -o pipefail
 
 # ─── Config ───
 # ⚠️  UPDATE THESE before distributing:
-DOWNLOAD_URL="https://github.com/malek2662/cp-dist/releases/latest/download/clawproxy.tgz.enc"
+DOWNLOAD_URL="https://github.com/malek2662/cp-dist/releases/latest/download/clawrouter.tgz.enc"
 DIST_PASSWORD='Cl@wPr0xy$2026!SecureDist#K9x'
 
 # ─── Colors ───
@@ -27,8 +27,8 @@ heading() { echo -e "\n${BOLD}${CYAN}$1${NC}\n"; }
 
 # ─── Banner ───
 echo ""
-echo -e "${BOLD}🐾 ClawProxy Installer${NC}"
-echo -e "${DIM}   AI Routing Proxy — Multi-provider, Key Rotation, Dashboard${NC}"
+echo -e "${BOLD}🐾 ClawRouter Installer${NC}"
+echo -e "${DIM}   AI Routing Gateway — Multi-provider, Key Rotation, Dashboard${NC}"
 echo ""
 
 # ─── Step 1: Detect OS & Package Manager ───
@@ -214,7 +214,7 @@ else
     TTY_INPUT="/dev/tty"
 fi
 
-echo -ne "  Enter port for ClawProxy ${DIM}(default: ${DEFAULT_PORT})${NC}: "
+echo -ne "  Enter port for ClawRouter ${DIM}(default: ${DEFAULT_PORT})${NC}: "
 read -r USER_PORT < "$TTY_INPUT" 2>/dev/null || USER_PORT=""
 
 PORT="${USER_PORT:-$DEFAULT_PORT}"
@@ -222,7 +222,7 @@ PORT="${USER_PORT:-$DEFAULT_PORT}"
 if [ "$PORT" != "$DEFAULT_PORT" ]; then
     warn "Using custom port: ${PORT}"
     # Write to env file for persistence
-    ENV_FILE="$HOME/.clawproxy.env"
+    ENV_FILE="$HOME/.clawrouter.env"
     echo "PORT=${PORT}" > "$ENV_FILE"
     export PORT="$PORT"
     info "Port saved to ${ENV_FILE}"
@@ -230,12 +230,12 @@ else
     info "Using default port: ${PORT}"
 fi
 
-# ─── Step 3: Download & Decrypt ClawProxy Package ───
-heading "Downloading ClawProxy..."
+# ─── Step 3: Download & Decrypt ClawRouter Package ───
+heading "Downloading ClawRouter..."
 
 TEMP_DIR=$(mktemp -d)
-ENCRYPTED_FILE="$TEMP_DIR/clawproxy.tgz.enc"
-DECRYPTED_FILE="$TEMP_DIR/clawproxy.tgz"
+ENCRYPTED_FILE="$TEMP_DIR/clawrouter.tgz.enc"
+DECRYPTED_FILE="$TEMP_DIR/clawrouter.tgz"
 
 echo -e "  ${DIM}Downloading encrypted package...${NC}"
 curl -fsSL -o "$ENCRYPTED_FILE" "$DOWNLOAD_URL"
@@ -259,35 +259,35 @@ if [ ! -f "$DECRYPTED_FILE" ]; then
 fi
 info "Package decrypted"
 
-# ─── Step 4: Install ClawProxy ───
-heading "Installing ClawProxy..."
+# ─── Step 4: Install ClawRouter ───
+heading "Installing ClawRouter..."
 
 # Backup existing database before npm install (npm replaces the entire package directory)
 NPM_PREFIX=$(npm config get prefix 2>/dev/null || echo "")
-CLAWPROXY_DIR="${NPM_PREFIX}/lib/node_modules/clawproxy"
+CLAWROUTER_DIR="${NPM_PREFIX}/lib/node_modules/clawrouter"
 DB_BACKUP=""
 
-if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWPROXY_DIR}/clawproxy.db" ]; then
-    DB_BACKUP=$(mktemp -d)/clawproxy_backup
+if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWROUTER_DIR}/clawrouter.db" ]; then
+    DB_BACKUP=$(mktemp -d)/clawrouter_backup
     mkdir -p "$DB_BACKUP"
-    cp "${CLAWPROXY_DIR}/clawproxy.db" "$DB_BACKUP/clawproxy.db" 2>/dev/null && \
+    cp "${CLAWROUTER_DIR}/clawrouter.db" "$DB_BACKUP/clawrouter.db" 2>/dev/null && \
         info "Backed up existing database"
     # Also backup WAL/SHM files if they exist
-    cp "${CLAWPROXY_DIR}/clawproxy.db-wal" "$DB_BACKUP/" 2>/dev/null || true
-    cp "${CLAWPROXY_DIR}/clawproxy.db-shm" "$DB_BACKUP/" 2>/dev/null || true
+    cp "${CLAWROUTER_DIR}/clawrouter.db-wal" "$DB_BACKUP/" 2>/dev/null || true
+    cp "${CLAWROUTER_DIR}/clawrouter.db-shm" "$DB_BACKUP/" 2>/dev/null || true
     # Backup state file (activation/version tracking)
-    cp "${CLAWPROXY_DIR}/.clawproxy-state" "$DB_BACKUP/" 2>/dev/null || true
+    cp "${CLAWROUTER_DIR}/.clawrouter-state" "$DB_BACKUP/" 2>/dev/null || true
 fi
 # Also check backend directory
-if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWPROXY_DIR}/backend/clawproxy.db" ]; then
+if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWROUTER_DIR}/backend/clawrouter.db" ]; then
     if [ -z "$DB_BACKUP" ]; then
-        DB_BACKUP=$(mktemp -d)/clawproxy_backup
+        DB_BACKUP=$(mktemp -d)/clawrouter_backup
         mkdir -p "$DB_BACKUP"
     fi
-    cp "${CLAWPROXY_DIR}/backend/clawproxy.db" "$DB_BACKUP/backend_clawproxy.db" 2>/dev/null && \
+    cp "${CLAWROUTER_DIR}/backend/clawrouter.db" "$DB_BACKUP/backend_clawrouter.db" 2>/dev/null && \
         info "Backed up existing backend database"
-    cp "${CLAWPROXY_DIR}/backend/clawproxy.db-wal" "$DB_BACKUP/backend_clawproxy.db-wal" 2>/dev/null || true
-    cp "${CLAWPROXY_DIR}/backend/clawproxy.db-shm" "$DB_BACKUP/backend_clawproxy.db-shm" 2>/dev/null || true
+    cp "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" "$DB_BACKUP/backend_clawrouter.db-wal" 2>/dev/null || true
+    cp "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" "$DB_BACKUP/backend_clawrouter.db-shm" 2>/dev/null || true
 fi
 
 npm install -g "$DECRYPTED_FILE"
@@ -297,66 +297,65 @@ rm -rf "$TEMP_DIR"
 
 # Restore database after install
 if [ -n "$DB_BACKUP" ]; then
-    if [ -f "$DB_BACKUP/clawproxy.db" ]; then
-        cp "$DB_BACKUP/clawproxy.db" "${CLAWPROXY_DIR}/clawproxy.db" 2>/dev/null
-        cp "$DB_BACKUP/clawproxy.db-wal" "${CLAWPROXY_DIR}/clawproxy.db-wal" 2>/dev/null || true
-        cp "$DB_BACKUP/clawproxy.db-shm" "${CLAWPROXY_DIR}/clawproxy.db-shm" 2>/dev/null || true
+    if [ -f "$DB_BACKUP/clawrouter.db" ]; then
+        cp "$DB_BACKUP/clawrouter.db" "${CLAWROUTER_DIR}/clawrouter.db" 2>/dev/null
+        cp "$DB_BACKUP/clawrouter.db-wal" "${CLAWROUTER_DIR}/clawrouter.db-wal" 2>/dev/null || true
+        cp "$DB_BACKUP/clawrouter.db-shm" "${CLAWROUTER_DIR}/clawrouter.db-shm" 2>/dev/null || true
         info "Restored existing database"
     fi
     # Restore state file silently (activation/version tracking — internal, not shown to user)
-    cp "$DB_BACKUP/.clawproxy-state" "${CLAWPROXY_DIR}/.clawproxy-state" 2>/dev/null || true
-    if [ -f "$DB_BACKUP/backend_clawproxy.db" ]; then
-        cp "$DB_BACKUP/backend_clawproxy.db" "${CLAWPROXY_DIR}/backend/clawproxy.db" 2>/dev/null
-        cp "$DB_BACKUP/backend_clawproxy.db-wal" "${CLAWPROXY_DIR}/backend/clawproxy.db-wal" 2>/dev/null || true
-        cp "$DB_BACKUP/backend_clawproxy.db-shm" "${CLAWPROXY_DIR}/backend/clawproxy.db-shm" 2>/dev/null || true
+    cp "$DB_BACKUP/.clawrouter-state" "${CLAWROUTER_DIR}/.clawrouter-state" 2>/dev/null || true
+    if [ -f "$DB_BACKUP/backend_clawrouter.db" ]; then
+        cp "$DB_BACKUP/backend_clawrouter.db" "${CLAWROUTER_DIR}/backend/clawrouter.db" 2>/dev/null
+        cp "$DB_BACKUP/backend_clawrouter.db-wal" "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" 2>/dev/null || true
+        cp "$DB_BACKUP/backend_clawrouter.db-shm" "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" 2>/dev/null || true
         info "Restored existing backend database"
     fi
     # Clean up backup
     rm -rf "$(dirname "$DB_BACKUP")"
 fi
 
-if ! command -v clawproxy &> /dev/null; then
+if ! command -v clawrouter &> /dev/null; then
     # npm global bin might not be in PATH
     NPM_PREFIX=$(npm config get prefix)
     export PATH="$NPM_PREFIX/bin:$PATH"
 
-    if ! command -v clawproxy &> /dev/null; then
-        error "clawproxy command not found after install."
+    if ! command -v clawrouter &> /dev/null; then
+        error "clawrouter command not found after install."
         echo ""
         echo "  Make sure npm global bin is in your PATH:"
         echo "    export PATH=\"${NPM_PREFIX}/bin:\$PATH\""
         echo ""
         echo "  Then re-run:"
-        echo "    clawproxy install --port ${PORT}"
+        echo "    clawrouter install --port ${PORT}"
         exit 1
     fi
 fi
 
-info "ClawProxy installed globally"
+info "ClawRouter installed globally"
 
 # ─── Step 4.5: Copy Documentation to User Documents ───
 heading "Setting up Documentation..."
 
-DOCS_DIR="$HOME/Documents/ClawProxy-Documentation"
+DOCS_DIR="$HOME/Documents/ClawRouter-Documentation"
 if [ ! -d "$HOME/Documents" ]; then
-    DOCS_DIR="$HOME/ClawProxy-Documentation"
+    DOCS_DIR="$HOME/ClawRouter-Documentation"
 fi
 mkdir -p "$DOCS_DIR"
 
 if [ -n "$NPM_PREFIX" ]; then
-    CLAWPROXY_DIR="${NPM_PREFIX}/lib/node_modules/clawproxy"
-    if [ -d "$CLAWPROXY_DIR/Docs" ]; then
-        # Copy md and pdf directories
-        cp -r "$CLAWPROXY_DIR/Docs/md" "$DOCS_DIR/" 2>/dev/null || true
-        cp -r "$CLAWPROXY_DIR/Docs/pdf" "$DOCS_DIR/" 2>/dev/null || true
-        cp "$CLAWPROXY_DIR/README.md" "$DOCS_DIR/" 2>/dev/null || true
+    CLAWROUTER_DIR="${NPM_PREFIX}/lib/node_modules/clawrouter"
+    if [ -d "$CLAWROUTER_DIR/Docs" ]; then
+        # Copy md documentation
+        cp -r "$CLAWROUTER_DIR/Docs/md" "$DOCS_DIR/" 2>/dev/null || true
+        cp "$CLAWROUTER_DIR/README.md" "$DOCS_DIR/" 2>/dev/null || true
         info "Documentation copied to ${DOCS_DIR}"
 
         # Remove docs from install directory (keep only in Documentation folder)
-        rm -rf "$CLAWPROXY_DIR/Docs" 2>/dev/null || true
-        rm -f "$CLAWPROXY_DIR/README.md" 2>/dev/null || true
+        rm -rf "$CLAWROUTER_DIR/Docs" 2>/dev/null || true
+        rm -f "$CLAWROUTER_DIR/README.md" 2>/dev/null || true
     else
-        warn "Could not find ClawProxy documentation directory."
+        warn "Could not find ClawRouter documentation directory."
     fi
 fi
 
@@ -364,26 +363,26 @@ fi
 heading "Setting up background service..."
 
 if [ "$PORT" != "$DEFAULT_PORT" ]; then
-    clawproxy install --port "$PORT" --no-open
+    clawrouter install --port "$PORT" --no-open
 else
-    clawproxy install --no-open
+    clawrouter install --no-open
 fi
 
 # ─── Done ───
 echo ""
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}${BOLD}  ✅ ClawProxy is installed and running!${NC}"
+echo -e "${GREEN}${BOLD}  ✅ ClawRouter is installed and running!${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BOLD}Dashboard:${NC}  ${CYAN}http://localhost:${PORT}${NC}"
 echo -e "  ${BOLD}Proxy:${NC}      ${CYAN}http://localhost:${PORT}/proxy/{provider}/v1${NC}"
 echo ""
-echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawProxy-Documentation' folder in your Documents!${NC}"
+echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawRouter-Documentation' folder in your Documents!${NC}"
 echo ""
 echo -e "  ${DIM}Manage with:${NC}"
-echo -e "    clawproxy status"
-echo -e "    clawproxy stop"
-echo -e "    clawproxy restart"
-echo -e "    clawproxy logs"
-echo -e "    clawproxy uninstall"
+echo -e "    clawrouter status"
+echo -e "    clawrouter stop"
+echo -e "    clawrouter restart"
+echo -e "    clawrouter logs"
+echo -e "    clawrouter uninstall"
 echo ""

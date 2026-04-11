@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------
-# ClawProxy Installer - Windows PowerShell 5+
-# Usage: irm https://get.clawproxy.qzz.io/install.ps1 | iex
+# ClawRouter Installer - Windows PowerShell 5+
+# Usage: irm https://get.clawrouter.qzz.io/install.ps1 | iex
 # ---------------------------------------------------------------
 param(
     [switch]$NonInteractive,
@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 # --- Config ---
 # UPDATE THESE before distributing:
-$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/latest/download/clawproxy.tgz.enc"
+$DOWNLOAD_URL = "https://github.com/malek2662/cp-dist/releases/latest/download/clawrouter.tgz.enc"
 $DIST_PASSWORD = 'Cl@wPr0xy$2026!SecureDist#K9x'
 
 # --- Colors ---
@@ -22,8 +22,8 @@ function Write-Head    { param([string]$msg) Write-Host "`n$msg`n" -ForegroundCo
 
 # --- Banner ---
 Write-Host ""
-Write-Host "  ClawProxy Installer" -ForegroundColor Cyan
-Write-Host "  AI Routing Proxy - Multi-provider, Key Rotation, Dashboard" -ForegroundColor DarkGray
+Write-Host "  ClawRouter Installer" -ForegroundColor Cyan
+Write-Host "  AI Routing Gateway - Multi-provider, Key Rotation, Dashboard" -ForegroundColor DarkGray
 Write-Host ""
 
 # --- Step 1: Check / Install Node.js ---
@@ -97,16 +97,16 @@ Write-Head "Configuration"
 $DEFAULT_PORT = 3030
 
 # Determine if we are in non-interactive mode (CI, piped, or explicit flag)
-$isNonInteractive = $NonInteractive -or $env:CI -or $env:CLAWPROXY_NONINTERACTIVE
+$isNonInteractive = $NonInteractive -or $env:CI -or $env:CLAWROUTER_NONINTERACTIVE
 
 if ($PortParam -gt 0) {
     $Port = $PortParam
-} elseif ($env:CLAWPROXY_PORT) {
-    $Port = [int]$env:CLAWPROXY_PORT
+} elseif ($env:CLAWROUTER_PORT) {
+    $Port = [int]$env:CLAWROUTER_PORT
 } elseif ($isNonInteractive) {
     $Port = $DEFAULT_PORT
 } else {
-    $UserPort = Read-Host "  Enter port for ClawProxy (default: $DEFAULT_PORT)"
+    $UserPort = Read-Host "  Enter port for ClawRouter (default: $DEFAULT_PORT)"
     if ([string]::IsNullOrWhiteSpace($UserPort)) {
         $Port = $DEFAULT_PORT
     } else {
@@ -118,20 +118,20 @@ if ($Port -ne $DEFAULT_PORT) {
     Write-Warn "Using custom port: $Port"
     $env:PORT = $Port
     # Save to env file for persistence
-    $envFile = Join-Path $HOME ".clawproxy.env"
+    $envFile = Join-Path $HOME ".clawrouter.env"
     "PORT=$Port" | Set-Content $envFile
     Write-Success "Port saved to $envFile"
 } else {
     Write-Success "Using default port: $Port"
 }
 
-# --- Step 3: Download and Decrypt ClawProxy Package ---
-Write-Head "Downloading ClawProxy..."
+# --- Step 3: Download and Decrypt ClawRouter Package ---
+Write-Head "Downloading ClawRouter..."
 
-$tempDir = Join-Path $env:TEMP "clawproxy_install_$(Get-Random)"
+$tempDir = Join-Path $env:TEMP "clawrouter_install_$(Get-Random)"
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-$encryptedFile = Join-Path $tempDir "clawproxy.tgz.enc"
-$decryptedFile = Join-Path $tempDir "clawproxy.tgz"
+$encryptedFile = Join-Path $tempDir "clawrouter.tgz.enc"
+$decryptedFile = Join-Path $tempDir "clawrouter.tgz"
 
 Write-Host "  Downloading encrypted package..." -ForegroundColor DarkGray
 try {
@@ -194,34 +194,34 @@ try {
 }
 Write-Success "Package decrypted"
 
-# --- Step 4: Install ClawProxy ---
-Write-Head "Installing ClawProxy..."
+# --- Step 4: Install ClawRouter ---
+Write-Head "Installing ClawRouter..."
 
 # Backup existing database before npm install (npm replaces the entire package directory)
 $npmPrefix = npm config get prefix 2>$null
-$clawDir = Join-Path $npmPrefix "node_modules\clawproxy"
+$clawDir = Join-Path $npmPrefix "node_modules\clawrouter"
 $dbBackup = $null
 
 # Check root-level DB
-if (Test-Path (Join-Path $clawDir "clawproxy.db")) {
-    $dbBackup = Join-Path $env:TEMP "clawproxy_backup_$(Get-Random)"
+if (Test-Path (Join-Path $clawDir "clawrouter.db")) {
+    $dbBackup = Join-Path $env:TEMP "clawrouter_backup_$(Get-Random)"
     New-Item -ItemType Directory -Path $dbBackup -Force | Out-Null
-    Copy-Item (Join-Path $clawDir "clawproxy.db") $dbBackup -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "clawproxy.db-wal") $dbBackup -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "clawproxy.db-shm") $dbBackup -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "clawrouter.db") $dbBackup -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "clawrouter.db-wal") $dbBackup -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "clawrouter.db-shm") $dbBackup -Force -ErrorAction SilentlyContinue
     # Backup state file (activation/version tracking)
-    Copy-Item (Join-Path $clawDir ".clawproxy-state") $dbBackup -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir ".clawrouter-state") $dbBackup -Force -ErrorAction SilentlyContinue
     Write-Success "Backed up existing database"
 }
 # Check backend-level DB
-if (Test-Path (Join-Path $clawDir "backend\clawproxy.db")) {
+if (Test-Path (Join-Path $clawDir "backend\clawrouter.db")) {
     if (-not $dbBackup) {
-        $dbBackup = Join-Path $env:TEMP "clawproxy_backup_$(Get-Random)"
+        $dbBackup = Join-Path $env:TEMP "clawrouter_backup_$(Get-Random)"
         New-Item -ItemType Directory -Path $dbBackup -Force | Out-Null
     }
-    Copy-Item (Join-Path $clawDir "backend\clawproxy.db") (Join-Path $dbBackup "backend_clawproxy.db") -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "backend\clawproxy.db-wal") (Join-Path $dbBackup "backend_clawproxy.db-wal") -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "backend\clawproxy.db-shm") (Join-Path $dbBackup "backend_clawproxy.db-shm") -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "backend\clawrouter.db") (Join-Path $dbBackup "backend_clawrouter.db") -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "backend\clawrouter.db-wal") (Join-Path $dbBackup "backend_clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $clawDir "backend\clawrouter.db-shm") (Join-Path $dbBackup "backend_clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
     Write-Success "Backed up existing backend database"
 }
 
@@ -237,33 +237,33 @@ Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 
 # Restore database after install
 if ($dbBackup) {
-    $clawDir = Join-Path (npm config get prefix 2>$null) "node_modules\clawproxy"
-    if (Test-Path (Join-Path $dbBackup "clawproxy.db")) {
-        Copy-Item (Join-Path $dbBackup "clawproxy.db") (Join-Path $clawDir "clawproxy.db") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "clawproxy.db-wal") (Join-Path $clawDir "clawproxy.db-wal") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "clawproxy.db-shm") (Join-Path $clawDir "clawproxy.db-shm") -Force -ErrorAction SilentlyContinue
+    $clawDir = Join-Path (npm config get prefix 2>$null) "node_modules\clawrouter"
+    if (Test-Path (Join-Path $dbBackup "clawrouter.db")) {
+        Copy-Item (Join-Path $dbBackup "clawrouter.db") (Join-Path $clawDir "clawrouter.db") -Force -ErrorAction SilentlyContinue
+        Copy-Item (Join-Path $dbBackup "clawrouter.db-wal") (Join-Path $clawDir "clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
+        Copy-Item (Join-Path $dbBackup "clawrouter.db-shm") (Join-Path $clawDir "clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
         Write-Success "Restored existing database"
     }
     # Restore state file silently (activation/version tracking — internal, not shown to user)
-    Copy-Item (Join-Path $dbBackup ".clawproxy-state") (Join-Path $clawDir ".clawproxy-state") -Force -ErrorAction SilentlyContinue
-    if (Test-Path (Join-Path $dbBackup "backend_clawproxy.db")) {
-        Copy-Item (Join-Path $dbBackup "backend_clawproxy.db") (Join-Path $clawDir "backend\clawproxy.db") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "backend_clawproxy.db-wal") (Join-Path $clawDir "backend\clawproxy.db-wal") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "backend_clawproxy.db-shm") (Join-Path $clawDir "backend\clawproxy.db-shm") -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $dbBackup ".clawrouter-state") (Join-Path $clawDir ".clawrouter-state") -Force -ErrorAction SilentlyContinue
+    if (Test-Path (Join-Path $dbBackup "backend_clawrouter.db")) {
+        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db") (Join-Path $clawDir "backend\clawrouter.db") -Force -ErrorAction SilentlyContinue
+        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db-wal") (Join-Path $clawDir "backend\clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
+        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db-shm") (Join-Path $clawDir "backend\clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
         Write-Success "Restored existing backend database"
     }
     Remove-Item $dbBackup -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# Verify clawproxy command is available
-$clawCmd = Get-Command clawproxy -ErrorAction SilentlyContinue
+# Verify clawrouter command is available
+$clawCmd = Get-Command clawrouter -ErrorAction SilentlyContinue
 if (-not $clawCmd) {
     # Try refreshing PATH first
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-    $clawCmd = Get-Command clawproxy -ErrorAction SilentlyContinue
+    $clawCmd = Get-Command clawrouter -ErrorAction SilentlyContinue
 }
 if (-not $clawCmd) {
-    Write-Err "clawproxy command not found after install."
+    Write-Err "clawrouter command not found after install."
     Write-Host ""
     Write-Host "  Make sure npm global bin is in your PATH:"
     $npmPrefix = npm config get prefix
@@ -271,22 +271,21 @@ if (-not $clawCmd) {
     exit 1
 }
 
-Write-Success "ClawProxy installed globally"
+Write-Success "ClawRouter installed globally"
 
 # --- Step 4.5: Copy Documentation to User Documents ---
 Write-Head "Setting up Documentation..."
 
-$docsDir = Join-Path $HOME "Documents\ClawProxy-Documentation"
+$docsDir = Join-Path $HOME "Documents\ClawRouter-Documentation"
 if (-not (Test-Path (Join-Path $HOME "Documents"))) {
-    $docsDir = Join-Path $HOME "ClawProxy-Documentation"
+    $docsDir = Join-Path $HOME "ClawRouter-Documentation"
 }
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
 
 if ($clawDir -and (Test-Path (Join-Path $clawDir "Docs"))) {
-    # Copy md and pdf directories
+    # Copy md documentation
     $srcDocs = Join-Path $clawDir "Docs"
     if (Test-Path (Join-Path $srcDocs "md"))  { Copy-Item (Join-Path $srcDocs "md")  $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path (Join-Path $srcDocs "pdf")) { Copy-Item (Join-Path $srcDocs "pdf") $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path (Join-Path $clawDir "README.md")) { Copy-Item (Join-Path $clawDir "README.md") $docsDir -Force -ErrorAction SilentlyContinue }
 
     Write-Success "Documentation copied to $docsDir"
@@ -295,13 +294,13 @@ if ($clawDir -and (Test-Path (Join-Path $clawDir "Docs"))) {
     Remove-Item (Join-Path $clawDir "Docs") -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $clawDir "README.md") -Force -ErrorAction SilentlyContinue
 } else {
-    Write-Warn "Could not find ClawProxy documentation directory."
+    Write-Warn "Could not find ClawRouter documentation directory."
 }
 
 # --- Step 5: Install node-windows dependency ---
 Write-Head "Installing Windows service dependency..."
 
-$clawDir = Split-Path (Split-Path (Get-Command clawproxy).Source)
+$clawDir = Split-Path (Split-Path (Get-Command clawrouter).Source)
 Push-Location $clawDir
 npm install node-windows
 if ($LASTEXITCODE -ne 0) {
@@ -315,26 +314,26 @@ Write-Success "node-windows installed"
 Write-Head "Setting up Windows service..."
 
 if ($Port -ne $DEFAULT_PORT) {
-    clawproxy install --port $Port --no-open
+    clawrouter install --port $Port --no-open
 } else {
-    clawproxy install --no-open
+    clawrouter install --no-open
 }
 
 # --- Done ---
 Write-Host ""
 Write-Host "=============================================" -ForegroundColor Green
-Write-Host "  ClawProxy is installed and running!" -ForegroundColor Green
+Write-Host "  ClawRouter is installed and running!" -ForegroundColor Green
 Write-Host "=============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawProxy-Documentation' folder in your Documents!" -ForegroundColor Green
+Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawRouter-Documentation' folder in your Documents!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Manage with:" -ForegroundColor DarkGray
-Write-Host "    clawproxy status"
-Write-Host "    clawproxy stop"
-Write-Host "    clawproxy restart"
-Write-Host "    clawproxy logs"
-Write-Host "    clawproxy uninstall"
+Write-Host "    clawrouter status"
+Write-Host "    clawrouter stop"
+Write-Host "    clawrouter restart"
+Write-Host "    clawrouter logs"
+Write-Host "    clawrouter uninstall"
 Write-Host ""
