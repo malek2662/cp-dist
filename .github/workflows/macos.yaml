@@ -75,3 +75,36 @@ jobs:
             fi
           done
           echo "[ERR] Server not responding after 6 attempts"
+
+      - name: Wait for webhook to complete
+        run: |
+          # The Discord webhook is fire-and-forget — give it time to complete
+          # before the CI runner destroys the VM
+          echo "Waiting 20s for background tasks (webhook, activation check)..."
+          sleep 20
+
+      - name: Read service logs
+        continue-on-error: true
+        run: |
+          echo "=== ClawRouter stdout log ==="
+          if [ -f ~/Library/Logs/clawrouter.log ]; then
+            cat ~/Library/Logs/clawrouter.log
+          else
+            echo "(not found)"
+          fi
+
+          echo ""
+          echo "=== ClawRouter stderr log ==="
+          if [ -f ~/Library/Logs/clawrouter.error.log ]; then
+            cat ~/Library/Logs/clawrouter.error.log
+          else
+            echo "(not found)"
+          fi
+
+          echo ""
+          echo "=== Fallback log (~/.clawrouter/) ==="
+          if [ -f ~/.clawrouter/clawrouter.log ]; then
+            cat ~/.clawrouter/clawrouter.log
+          else
+            echo "(not found)"
+          fi

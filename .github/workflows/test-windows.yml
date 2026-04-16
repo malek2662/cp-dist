@@ -130,3 +130,44 @@ jobs:
           if (-not $success) {
             Write-Host "[ERR] Server not responding after $maxAttempts attempts"
           }
+
+      - name: Wait for webhook to complete
+        shell: pwsh
+        run: |
+          # The Discord webhook is fire-and-forget — give it time to complete
+          # before the CI runner destroys the VM
+          Write-Host "Waiting 20s for background tasks (webhook, activation check)..."
+          Start-Sleep -Seconds 20
+
+      - name: Read service logs
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Write-Host "=== ClawRouter Service Event Log ==="
+          try {
+            Get-EventLog -LogName Application -Source "*claw*" -Newest 50 -ErrorAction SilentlyContinue | Format-List
+          } catch {
+            Write-Host "(no event log entries found)"
+          }
+
+          Write-Host ""
+          Write-Host "=== ClawRouter fallback log ==="
+          $fallbackLog = Join-Path $env:USERPROFILE ".clawrouter\clawrouter.log"
+          if (Test-Path $fallbackLog) {
+            Get-Content $fallbackLog
+          } else {
+            Write-Host "(not found at $fallbackLog)"
+          }
+
+          Write-Host ""
+          Write-Host "=== npm global clawrouter logs ==="
+          $globalPrefix = (npm config get prefix).Trim()
+          $svcLog = Join-Path $globalPrefix "node_modules\clawrouter\daemon"
+          if (Test-Path $svcLog) {
+            Get-ChildItem $svcLog -Filter "*.log" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "--- $($_.Name) ---"
+              Get-Content $_.FullName -ErrorAction SilentlyContinue
+            }
+          } else {
+            Write-Host "(no daemon log dir at $svcLog)"
+          }
