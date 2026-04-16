@@ -1,7 +1,10 @@
 name: Test macOS Installer
+run-name: "Test macOS Installer — ${{ github.event.release.tag_name || github.ref_name }}"
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
   push:
     paths:
       - 'install.sh'

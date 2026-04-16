@@ -1,7 +1,10 @@
 name: Test Windows Installer
+run-name: "Test Windows Installer — ${{ github.event.release.tag_name || github.ref_name }}"
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
   push:
     paths:
       - 'install.ps1'
