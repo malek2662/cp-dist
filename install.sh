@@ -346,8 +346,8 @@ mkdir -p "$DOCS_DIR"
 if [ -n "$NPM_PREFIX" ]; then
     CLAWROUTER_DIR="${NPM_PREFIX}/lib/node_modules/clawrouter"
     if [ -d "$CLAWROUTER_DIR/Docs" ]; then
-        # Copy md documentation
-        cp -r "$CLAWROUTER_DIR/Docs/md" "$DOCS_DIR/" 2>/dev/null || true
+        # Copy md documentation (contents of Docs/md → Documentation folder root)
+        cp -r "$CLAWROUTER_DIR/Docs/md/." "$DOCS_DIR/" 2>/dev/null || true
         cp "$CLAWROUTER_DIR/README.md" "$DOCS_DIR/" 2>/dev/null || true
         info "Documentation copied to ${DOCS_DIR}"
 

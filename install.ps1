@@ -283,9 +283,9 @@ if (-not (Test-Path (Join-Path $HOME "Documents"))) {
 New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
 
 if ($clawDir -and (Test-Path (Join-Path $clawDir "Docs"))) {
-    # Copy md documentation
+    # Copy md documentation (contents of Docs\md → Documentation folder root)
     $srcDocs = Join-Path $clawDir "Docs"
-    if (Test-Path (Join-Path $srcDocs "md"))  { Copy-Item (Join-Path $srcDocs "md")  $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path (Join-Path $srcDocs "md"))  { Copy-Item (Join-Path $srcDocs "md\*")  $docsDir -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path (Join-Path $clawDir "README.md")) { Copy-Item (Join-Path $clawDir "README.md") $docsDir -Force -ErrorAction SilentlyContinue }
 
     Write-Success "Documentation copied to $docsDir"
