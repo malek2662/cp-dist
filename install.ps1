@@ -133,7 +133,7 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 $encryptedFile = Join-Path $tempDir "clawrouter.tgz.enc"
 $decryptedFile = Join-Path $tempDir "clawrouter.tgz"
 
-Write-Host "  Downloading encrypted package..." -ForegroundColor DarkGray
+Write-Host "  Downloading package..." -ForegroundColor DarkGray
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile $encryptedFile -UseBasicParsing
@@ -142,9 +142,7 @@ try {
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     exit 1
 }
-Write-Success "Package downloaded"
-
-Write-Host "  Decrypting package..." -ForegroundColor DarkGray
+Write-Host "  Preparing package..." -ForegroundColor DarkGray
 
 # Build the Node.js decryption script content and write to file
 $decryptScriptLines = @(
@@ -192,7 +190,7 @@ try {
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     exit 1
 }
-Write-Success "Package decrypted"
+Write-Success "Package ready"
 
 # --- Step 4: Install ClawRouter ---
 Write-Head "Installing ClawRouter..."
@@ -313,10 +311,13 @@ Write-Success "node-windows installed"
 # --- Step 6: Install as service ---
 Write-Head "Setting up Windows service..."
 
+# --quiet: this script prints its own richer summary below. Without it the CLI
+# prints the identical "installed and running / Dashboard / Manage with" block
+# and the user sees the whole thing twice.
 if ($Port -ne $DEFAULT_PORT) {
-    clawrouter install --port $Port --no-open
+    clawrouter install --port $Port --no-open --quiet
 } else {
-    clawrouter install --no-open
+    clawrouter install --no-open --quiet
 }
 
 # --- Done ---
@@ -328,7 +329,7 @@ Write-Host ""
 Write-Host "  Dashboard:  " -NoNewline; Write-Host "http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "  Proxy:      " -NoNewline; Write-Host "http://localhost:$Port/proxy/{provider}/v1" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  " -NoNewline; Write-Host "📔 Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawRouter-Documentation' folder in your Documents!" -ForegroundColor Green
+Write-Host "  " -NoNewline; Write-Host "Knowledge Base: " -NoNewline -ForegroundColor White; Write-Host "We created a 'ClawRouter-Documentation' folder in your Documents!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Manage with:" -ForegroundColor DarkGray
 Write-Host "    clawrouter status"

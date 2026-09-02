@@ -27,7 +27,7 @@ heading() { echo -e "\n${BOLD}${CYAN}$1${NC}\n"; }
 
 # ─── Banner ───
 echo ""
-echo -e "${BOLD}🐾 ClawRouter Installer${NC}"
+echo -e "${BOLD}ClawRouter Installer${NC}"
 echo -e "${DIM}   AI Routing Gateway — Multi-provider, Key Rotation, Dashboard${NC}"
 echo ""
 
@@ -134,8 +134,12 @@ if ! command -v node &> /dev/null; then
     NEED_NODE_INSTALL=true
 else
     NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
-    if [ "$NODE_VERSION" -lt 18 ]; then
-        warn "Node.js version ${NODE_VERSION} is too old. Required: >= 18"
+    # >= 20: better-sqlite3 12.x dropped EOL Node 18, and its prebuilt binaries
+    # start at Node 20 (ABI 115). On Node 18 there is no prebuilt binary, so npm
+    # would fall back to compiling SQLite from source — slow, needs a toolchain,
+    # and needs sizeable scratch space in TMPDIR.
+    if [ "$NODE_VERSION" -lt 20 ]; then
+        warn "Node.js version ${NODE_VERSION} is too old. Required: >= 20"
         NEED_NODE_INSTALL=true
     fi
 fi
@@ -237,27 +241,45 @@ TEMP_DIR=$(mktemp -d)
 ENCRYPTED_FILE="$TEMP_DIR/clawrouter.tgz.enc"
 DECRYPTED_FILE="$TEMP_DIR/clawrouter.tgz"
 
-echo -e "  ${DIM}Downloading encrypted package...${NC}"
+# Download + decrypt are one user-visible step: "downloading" is what the user
+# asked for, and the encryption is an internal delivery detail. Only failures
+# distinguish the two phases, so only failures name them.
+# `step` rewrites a single line in place when stdout is a TTY (\r + clear-to-EOL),
+# and falls back to plain sequential lines when piped/redirected — a progress
+# animation written into a log file would otherwise emit control characters.
+step() {
+    if [ -t 1 ]; then
+        printf "\r\033[K  ${DIM}%s${NC}" "$1"
+    else
+        echo -e "  ${DIM}$1${NC}"
+    fi
+}
+# Clear the in-place line before printing a final status.
+step_done() { [ -t 1 ] && printf "\r\033[K"; return 0; }
+
+step "Downloading package..."
 curl -fsSL -o "$ENCRYPTED_FILE" "$DOWNLOAD_URL"
 if [ ! -f "$ENCRYPTED_FILE" ]; then
+    step_done
     error "Download failed. Please check your internet connection."
     rm -rf "$TEMP_DIR"
     exit 1
 fi
-info "Package downloaded"
 
-echo -e "  ${DIM}Decrypting package...${NC}"
+step "Preparing package..."
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
     -pass "pass:${DIST_PASSWORD}" \
     -in "$ENCRYPTED_FILE" \
     -out "$DECRYPTED_FILE" 2>/dev/null
 
 if [ ! -f "$DECRYPTED_FILE" ]; then
-    error "Decryption failed."
+    step_done
+    error "Could not unpack the downloaded package."
     rm -rf "$TEMP_DIR"
     exit 1
 fi
-info "Package decrypted"
+step_done
+info "Package ready"
 
 # ─── Step 4: Install ClawRouter ───
 heading "Installing ClawRouter..."
@@ -267,16 +289,91 @@ NPM_PREFIX=$(npm config get prefix 2>/dev/null || echo "")
 CLAWROUTER_DIR="${NPM_PREFIX}/lib/node_modules/clawrouter"
 DB_BACKUP=""
 
+# ─── Backup safety helpers ───
+# The database is IRREPLACEABLE (providers, API keys, logs) and `npm install -g`
+# deletes the package directory outright, so the backup is the only copy that
+# survives. Two failure modes made this dangerous:
+#   1. `cp ... 2>/dev/null` hid a FAILED copy, so the install proceeded and
+#      destroyed the original — silent, total data loss.
+#   2. mktemp lands in TMPDIR (/tmp), which on modern systemd (>= v256) is a
+#      tmpfs in RAM with a per-user QUOTA (~50% of the tmpfs). A large database
+#      can exceed the quota, which is EDQUOT, not ENOSPC — so a plain free-space
+#      check is not sufficient on its own.
+# Therefore: warn if space looks short, then VERIFY the copy byte-for-byte and
+# abort BEFORE npm runs if it did not land intact.
+file_size_bytes() {
+    # Portable across GNU coreutils and BSD/macOS stat.
+    stat -c%s "$1" 2>/dev/null || stat -f%z "$1" 2>/dev/null || echo 0
+}
+
+# Copy one file and prove it arrived complete. Returns non-zero on any mismatch.
+copy_verified() {
+    local src="$1" dst="$2"
+    [ -f "$src" ] || return 0   # nothing to copy is not a failure
+    local src_size dst_size
+    src_size=$(file_size_bytes "$src")
+    if ! cp "$src" "$dst" 2>/dev/null; then
+        return 1
+    fi
+    dst_size=$(file_size_bytes "$dst")
+    [ "$src_size" = "$dst_size" ]
+}
+
+# Abort with an actionable message rather than proceeding into data loss.
+backup_failed() {
+    local what="$1" need_bytes="$2"
+    error "Could not back up ${what} — aborting BEFORE any changes are made."
+    echo ""
+    echo "  Your existing installation and database are UNTOUCHED."
+    echo ""
+    echo "  The backup is written to a temporary directory:"
+    echo "    ${TMPDIR:-/tmp}"
+    if [ -n "$need_bytes" ] && [ "$need_bytes" -gt 0 ] 2>/dev/null; then
+        echo "    required: ~$(( need_bytes / 1024 / 1024 )) MB"
+    fi
+    echo "    available: $(df -Pk "${TMPDIR:-/tmp}" 2>/dev/null | awk 'NR==2{printf "%d MB", $4/1024}')"
+    echo ""
+    echo "  Note: /tmp may be a RAM disk with a per-user quota, so it can refuse"
+    echo "  a write even when the disk itself has plenty of free space."
+    echo ""
+    echo "  Fix it by either freeing space in /tmp:"
+    echo "    df -h /tmp && du -sh /tmp/* 2>/dev/null | sort -rh | head"
+    echo ""
+    echo "  ...or pointing the backup at a directory with more room:"
+    echo "    TMPDIR=\"\$HOME/.cache\" bash -c \"\$(curl -fsSL https://get.clawrouter.qzz.io/install.sh)\""
+    echo ""
+    exit 1
+}
+
 if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWROUTER_DIR}/clawrouter.db" ]; then
+    # Preflight: compare the backup footprint against free space, and warn early.
+    DB_BYTES=$(file_size_bytes "${CLAWROUTER_DIR}/clawrouter.db")
+    WAL_BYTES=$(file_size_bytes "${CLAWROUTER_DIR}/clawrouter.db-wal")
+    NEED_BYTES=$(( DB_BYTES + WAL_BYTES ))
+    AVAIL_BYTES=$(( $(df -Pk "${TMPDIR:-/tmp}" 2>/dev/null | awk 'NR==2{print $4}' || echo 0) * 1024 ))
+    if [ "$NEED_BYTES" -gt 0 ] && [ "$AVAIL_BYTES" -gt 0 ] && [ "$NEED_BYTES" -gt "$AVAIL_BYTES" ]; then
+        warn "Database is $(( NEED_BYTES / 1024 / 1024 )) MB but ${TMPDIR:-/tmp} has only $(( AVAIL_BYTES / 1024 / 1024 )) MB free."
+    fi
+
     DB_BACKUP=$(mktemp -d)/clawrouter_backup
     mkdir -p "$DB_BACKUP"
-    cp "${CLAWROUTER_DIR}/clawrouter.db" "$DB_BACKUP/clawrouter.db" 2>/dev/null && \
-        info "Backed up existing database"
-    # Also backup WAL/SHM files if they exist
-    cp "${CLAWROUTER_DIR}/clawrouter.db-wal" "$DB_BACKUP/" 2>/dev/null || true
-    cp "${CLAWROUTER_DIR}/clawrouter.db-shm" "$DB_BACKUP/" 2>/dev/null || true
+    # The main database MUST be backed up intact — this one is fatal.
+    if copy_verified "${CLAWROUTER_DIR}/clawrouter.db" "$DB_BACKUP/clawrouter.db"; then
+        info "Backed up existing database ($(( DB_BYTES / 1024 / 1024 )) MB)"
+    else
+        rm -rf "$(dirname "$DB_BACKUP")" 2>/dev/null || true
+        backup_failed "your database" "$NEED_BYTES"
+    fi
+    # WAL must also be intact: a truncated WAL alongside a valid DB can lose the
+    # most recent committed transactions on recovery.
+    if ! copy_verified "${CLAWROUTER_DIR}/clawrouter.db-wal" "$DB_BACKUP/clawrouter.db-wal"; then
+        rm -rf "$(dirname "$DB_BACKUP")" 2>/dev/null || true
+        backup_failed "your database write-ahead log" "$NEED_BYTES"
+    fi
+    # SHM is a rebuildable shared-memory index — safe to skip if it can't be copied.
+    copy_verified "${CLAWROUTER_DIR}/clawrouter.db-shm" "$DB_BACKUP/clawrouter.db-shm" || true
     # Backup state file (activation/version tracking)
-    cp "${CLAWROUTER_DIR}/.clawrouter-state" "$DB_BACKUP/" 2>/dev/null || true
+    copy_verified "${CLAWROUTER_DIR}/.clawrouter-state" "$DB_BACKUP/.clawrouter-state" || true
 fi
 # Also check backend directory
 if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWROUTER_DIR}/backend/clawrouter.db" ]; then
@@ -284,10 +381,18 @@ if [ -n "$NPM_PREFIX" ] && [ -f "${CLAWROUTER_DIR}/backend/clawrouter.db" ]; the
         DB_BACKUP=$(mktemp -d)/clawrouter_backup
         mkdir -p "$DB_BACKUP"
     fi
-    cp "${CLAWROUTER_DIR}/backend/clawrouter.db" "$DB_BACKUP/backend_clawrouter.db" 2>/dev/null && \
+    BE_BYTES=$(file_size_bytes "${CLAWROUTER_DIR}/backend/clawrouter.db")
+    if copy_verified "${CLAWROUTER_DIR}/backend/clawrouter.db" "$DB_BACKUP/backend_clawrouter.db"; then
         info "Backed up existing backend database"
-    cp "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" "$DB_BACKUP/backend_clawrouter.db-wal" 2>/dev/null || true
-    cp "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" "$DB_BACKUP/backend_clawrouter.db-shm" 2>/dev/null || true
+    else
+        rm -rf "$(dirname "$DB_BACKUP")" 2>/dev/null || true
+        backup_failed "your backend database" "$BE_BYTES"
+    fi
+    if ! copy_verified "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" "$DB_BACKUP/backend_clawrouter.db-wal"; then
+        rm -rf "$(dirname "$DB_BACKUP")" 2>/dev/null || true
+        backup_failed "your backend database write-ahead log" "$BE_BYTES"
+    fi
+    copy_verified "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" "$DB_BACKUP/backend_clawrouter.db-shm" || true
 fi
 
 npm install -g "$DECRYPTED_FILE"
@@ -297,22 +402,48 @@ rm -rf "$TEMP_DIR"
 
 # Restore database after install
 if [ -n "$DB_BACKUP" ]; then
+    # The restore is verified too, and the backup is KEPT unless every restore
+    # succeeded. Previously the "Restored" message printed unconditionally and
+    # the backup was deleted regardless — so a failed restore looked like a
+    # success and destroyed the only remaining copy.
+    RESTORE_OK=true
     if [ -f "$DB_BACKUP/clawrouter.db" ]; then
-        cp "$DB_BACKUP/clawrouter.db" "${CLAWROUTER_DIR}/clawrouter.db" 2>/dev/null
-        cp "$DB_BACKUP/clawrouter.db-wal" "${CLAWROUTER_DIR}/clawrouter.db-wal" 2>/dev/null || true
-        cp "$DB_BACKUP/clawrouter.db-shm" "${CLAWROUTER_DIR}/clawrouter.db-shm" 2>/dev/null || true
-        info "Restored existing database"
+        if copy_verified "$DB_BACKUP/clawrouter.db" "${CLAWROUTER_DIR}/clawrouter.db"; then
+            copy_verified "$DB_BACKUP/clawrouter.db-wal" "${CLAWROUTER_DIR}/clawrouter.db-wal" || RESTORE_OK=false
+            copy_verified "$DB_BACKUP/clawrouter.db-shm" "${CLAWROUTER_DIR}/clawrouter.db-shm" || true
+            [ "$RESTORE_OK" = true ] && info "Restored existing database"
+        else
+            RESTORE_OK=false
+        fi
     fi
     # Restore state file silently (activation/version tracking — internal, not shown to user)
-    cp "$DB_BACKUP/.clawrouter-state" "${CLAWROUTER_DIR}/.clawrouter-state" 2>/dev/null || true
+    copy_verified "$DB_BACKUP/.clawrouter-state" "${CLAWROUTER_DIR}/.clawrouter-state" || true
     if [ -f "$DB_BACKUP/backend_clawrouter.db" ]; then
-        cp "$DB_BACKUP/backend_clawrouter.db" "${CLAWROUTER_DIR}/backend/clawrouter.db" 2>/dev/null
-        cp "$DB_BACKUP/backend_clawrouter.db-wal" "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" 2>/dev/null || true
-        cp "$DB_BACKUP/backend_clawrouter.db-shm" "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" 2>/dev/null || true
-        info "Restored existing backend database"
+        if copy_verified "$DB_BACKUP/backend_clawrouter.db" "${CLAWROUTER_DIR}/backend/clawrouter.db"; then
+            copy_verified "$DB_BACKUP/backend_clawrouter.db-wal" "${CLAWROUTER_DIR}/backend/clawrouter.db-wal" || RESTORE_OK=false
+            copy_verified "$DB_BACKUP/backend_clawrouter.db-shm" "${CLAWROUTER_DIR}/backend/clawrouter.db-shm" || true
+            [ "$RESTORE_OK" = true ] && info "Restored existing backend database"
+        else
+            RESTORE_OK=false
+        fi
     fi
-    # Clean up backup
-    rm -rf "$(dirname "$DB_BACKUP")"
+
+    if [ "$RESTORE_OK" = true ]; then
+        # Clean up backup
+        rm -rf "$(dirname "$DB_BACKUP")"
+    else
+        error "Database restore did not complete — your backup has been KEPT."
+        echo ""
+        echo "  Backup location (copy it somewhere safe now):"
+        echo "    $DB_BACKUP"
+        echo ""
+        echo "  Restore it manually with:"
+        echo "    cp \"$DB_BACKUP/clawrouter.db\" \"${CLAWROUTER_DIR}/clawrouter.db\""
+        echo ""
+        echo "  NOTE: /tmp is cleared on reboot — move the backup before restarting."
+        echo ""
+        exit 1
+    fi
 fi
 
 if ! command -v clawrouter &> /dev/null; then
@@ -362,22 +493,25 @@ fi
 # ─── Step 5: Install as service ───
 heading "Setting up background service..."
 
+# --quiet: this script prints its own richer summary below. Without it the CLI
+# prints the identical "installed and running / Dashboard / Manage with" block
+# and the user sees the whole thing twice.
 if [ "$PORT" != "$DEFAULT_PORT" ]; then
-    clawrouter install --port "$PORT" --no-open
+    clawrouter install --port "$PORT" --no-open --quiet
 else
-    clawrouter install --no-open
+    clawrouter install --no-open --quiet
 fi
 
 # ─── Done ───
 echo ""
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}${BOLD}  ✅ ClawRouter is installed and running!${NC}"
+echo -e "${GREEN}${BOLD}  ClawRouter is installed and running!${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BOLD}Dashboard:${NC}  ${CYAN}http://localhost:${PORT}${NC}"
 echo -e "  ${BOLD}Proxy:${NC}      ${CYAN}http://localhost:${PORT}/proxy/{provider}/v1${NC}"
 echo ""
-echo -e "  ${BOLD}📔 Knowledge Base:${NC} ${GREEN}We created a 'ClawRouter-Documentation' folder in your Documents!${NC}"
+echo -e "  ${BOLD}Knowledge Base:${NC} ${GREEN}We created a 'ClawRouter-Documentation' folder in your Documents!${NC}"
 echo ""
 echo -e "  ${DIM}Manage with:${NC}"
 echo -e "    clawrouter status"
