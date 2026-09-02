@@ -200,32 +200,126 @@ $npmPrefix = npm config get prefix 2>$null
 $clawDir = Join-Path $npmPrefix "node_modules\clawrouter"
 $dbBackup = $null
 
+# --- Backup safety helpers ---
+# The database is IRREPLACEABLE (providers, API keys, logs) and `npm install -g`
+# deletes the package directory outright, so the backup is the only copy that
+# survives. Two failure modes made the previous version dangerous (the same two
+# install.sh already fixes):
+#   1. `Copy-Item ... -ErrorAction SilentlyContinue` hid a FAILED copy, so the
+#      install proceeded and destroyed the original — silent, total data loss.
+#   2. "Restored existing database" printed unconditionally and the backup was
+#      deleted regardless, so a failed restore looked like a success and removed
+#      the only remaining copy.
+# Therefore: VERIFY every copy byte-for-byte, abort BEFORE npm runs if the DB or
+# its WAL did not land intact, and KEEP the backup unless every restore succeeded.
+
+# Copy one file and prove it arrived complete. Returns $true when the source is
+# absent (nothing to copy is not a failure) or the sizes match; $false otherwise.
+function Copy-Verified {
+    param([string]$Src, [string]$Dst)
+    if (-not (Test-Path -LiteralPath $Src -PathType Leaf)) { return $true }
+    try {
+        Copy-Item -LiteralPath $Src -Destination $Dst -Force -ErrorAction Stop
+    } catch {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $Dst -PathType Leaf)) { return $false }
+    return ((Get-Item -LiteralPath $Src).Length -eq (Get-Item -LiteralPath $Dst).Length)
+}
+
+# Abort with an actionable message rather than proceeding into data loss.
+function Backup-Failed {
+    param([string]$What, [long]$NeedBytes, [string]$BackupDir)
+    if ($BackupDir -and (Test-Path -LiteralPath $BackupDir)) {
+        Remove-Item -LiteralPath $BackupDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Err "Could not back up $What - aborting BEFORE any changes are made."
+    Write-Host ""
+    Write-Host "  Your existing installation and database are UNTOUCHED."
+    Write-Host ""
+    Write-Host "  The backup is written to your temp directory:"
+    Write-Host "    $env:TEMP"
+    if ($NeedBytes -gt 0) {
+        Write-Host ("    required: ~{0} MB" -f [math]::Ceiling($NeedBytes / 1MB))
+    }
+    try {
+        $drive = (Get-Item -LiteralPath $env:TEMP).PSDrive
+        if ($drive -and $null -ne $drive.Free) {
+            Write-Host ("    available: {0} MB" -f [math]::Floor($drive.Free / 1MB))
+        }
+    } catch { }
+    Write-Host ""
+    Write-Host "  Free some space on that drive, or point TEMP at a drive with more room"
+    Write-Host "  and re-run the installer, e.g.:"
+    Write-Host "    `$env:TEMP = 'D:\Temp'; irm https://get.clawrouter.qzz.io/install.ps1 | iex"
+    Write-Host ""
+    Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+
+function New-BackupDir {
+    $dir = Join-Path $env:TEMP "clawrouter_backup_$(Get-Random)"
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    return $dir
+}
+
 # Check root-level DB
-if (Test-Path (Join-Path $clawDir "clawrouter.db")) {
-    $dbBackup = Join-Path $env:TEMP "clawrouter_backup_$(Get-Random)"
-    New-Item -ItemType Directory -Path $dbBackup -Force | Out-Null
-    Copy-Item (Join-Path $clawDir "clawrouter.db") $dbBackup -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "clawrouter.db-wal") $dbBackup -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "clawrouter.db-shm") $dbBackup -Force -ErrorAction SilentlyContinue
+$rootDb = Join-Path $clawDir "clawrouter.db"
+if (Test-Path -LiteralPath $rootDb -PathType Leaf) {
+    $dbBytes  = (Get-Item -LiteralPath $rootDb).Length
+    $walPath  = Join-Path $clawDir "clawrouter.db-wal"
+    $walBytes = if (Test-Path -LiteralPath $walPath -PathType Leaf) { (Get-Item -LiteralPath $walPath).Length } else { 0 }
+    $needBytes = $dbBytes + $walBytes
+    # Preflight: warn early when the temp drive looks too small for the backup.
+    try {
+        $drive = (Get-Item -LiteralPath $env:TEMP).PSDrive
+        if ($drive -and $null -ne $drive.Free -and $needBytes -gt $drive.Free) {
+            Write-Warn ("Database is {0} MB but the temp drive has only {1} MB free." -f [math]::Ceiling($needBytes / 1MB), [math]::Floor($drive.Free / 1MB))
+        }
+    } catch { }
+
+    $dbBackup = New-BackupDir
+    # The main database MUST be backed up intact - this one is fatal.
+    if (Copy-Verified $rootDb (Join-Path $dbBackup "clawrouter.db")) {
+        Write-Success ("Backed up existing database ({0} MB)" -f [math]::Ceiling($dbBytes / 1MB))
+    } else {
+        Backup-Failed "your database" $needBytes $dbBackup
+    }
+    # WAL must also be intact: a truncated WAL alongside a valid DB can lose the
+    # most recent committed transactions on recovery.
+    if (-not (Copy-Verified $walPath (Join-Path $dbBackup "clawrouter.db-wal"))) {
+        Backup-Failed "your database write-ahead log" $needBytes $dbBackup
+    }
+    # SHM is a rebuildable shared-memory index - safe to skip if it can't be copied.
+    Copy-Verified (Join-Path $clawDir "clawrouter.db-shm") (Join-Path $dbBackup "clawrouter.db-shm") | Out-Null
     # Backup state file (activation/version tracking)
-    Copy-Item (Join-Path $clawDir ".clawrouter-state") $dbBackup -Force -ErrorAction SilentlyContinue
-    Write-Success "Backed up existing database"
+    Copy-Verified (Join-Path $clawDir ".clawrouter-state") (Join-Path $dbBackup ".clawrouter-state") | Out-Null
 }
 # Check backend-level DB
-if (Test-Path (Join-Path $clawDir "backend\clawrouter.db")) {
-    if (-not $dbBackup) {
-        $dbBackup = Join-Path $env:TEMP "clawrouter_backup_$(Get-Random)"
-        New-Item -ItemType Directory -Path $dbBackup -Force | Out-Null
+$beDb = Join-Path $clawDir "backend\clawrouter.db"
+if (Test-Path -LiteralPath $beDb -PathType Leaf) {
+    if (-not $dbBackup) { $dbBackup = New-BackupDir }
+    $beBytes = (Get-Item -LiteralPath $beDb).Length
+    if (Copy-Verified $beDb (Join-Path $dbBackup "backend_clawrouter.db")) {
+        Write-Success "Backed up existing backend database"
+    } else {
+        Backup-Failed "your backend database" $beBytes $dbBackup
     }
-    Copy-Item (Join-Path $clawDir "backend\clawrouter.db") (Join-Path $dbBackup "backend_clawrouter.db") -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "backend\clawrouter.db-wal") (Join-Path $dbBackup "backend_clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $clawDir "backend\clawrouter.db-shm") (Join-Path $dbBackup "backend_clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
-    Write-Success "Backed up existing backend database"
+    if (-not (Copy-Verified (Join-Path $clawDir "backend\clawrouter.db-wal") (Join-Path $dbBackup "backend_clawrouter.db-wal"))) {
+        Backup-Failed "your backend database write-ahead log" $beBytes $dbBackup
+    }
+    Copy-Verified (Join-Path $clawDir "backend\clawrouter.db-shm") (Join-Path $dbBackup "backend_clawrouter.db-shm") | Out-Null
 }
 
 npm install -g $decryptedFile
 if ($LASTEXITCODE -ne 0) {
     Write-Err "npm install failed."
+    if ($dbBackup) {
+        Write-Host ""
+        Write-Host "  Your database backup has been KEPT at:"
+        Write-Host "    $dbBackup"
+        Write-Host ""
+    }
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     exit 1
 }
@@ -236,21 +330,47 @@ Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 # Restore database after install
 if ($dbBackup) {
     $clawDir = Join-Path (npm config get prefix 2>$null) "node_modules\clawrouter"
-    if (Test-Path (Join-Path $dbBackup "clawrouter.db")) {
-        Copy-Item (Join-Path $dbBackup "clawrouter.db") (Join-Path $clawDir "clawrouter.db") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "clawrouter.db-wal") (Join-Path $clawDir "clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "clawrouter.db-shm") (Join-Path $clawDir "clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
-        Write-Success "Restored existing database"
+    # The restore is verified too, and the backup is KEPT unless every restore
+    # succeeded (see the helper comment above).
+    $restoreOk = $true
+    if (Test-Path -LiteralPath (Join-Path $dbBackup "clawrouter.db") -PathType Leaf) {
+        if (Copy-Verified (Join-Path $dbBackup "clawrouter.db") (Join-Path $clawDir "clawrouter.db")) {
+            if (-not (Copy-Verified (Join-Path $dbBackup "clawrouter.db-wal") (Join-Path $clawDir "clawrouter.db-wal"))) { $restoreOk = $false }
+            Copy-Verified (Join-Path $dbBackup "clawrouter.db-shm") (Join-Path $clawDir "clawrouter.db-shm") | Out-Null
+            if ($restoreOk) { Write-Success "Restored existing database" }
+        } else {
+            $restoreOk = $false
+        }
     }
-    # Restore state file silently (activation/version tracking — internal, not shown to user)
-    Copy-Item (Join-Path $dbBackup ".clawrouter-state") (Join-Path $clawDir ".clawrouter-state") -Force -ErrorAction SilentlyContinue
-    if (Test-Path (Join-Path $dbBackup "backend_clawrouter.db")) {
-        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db") (Join-Path $clawDir "backend\clawrouter.db") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db-wal") (Join-Path $clawDir "backend\clawrouter.db-wal") -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $dbBackup "backend_clawrouter.db-shm") (Join-Path $clawDir "backend\clawrouter.db-shm") -Force -ErrorAction SilentlyContinue
-        Write-Success "Restored existing backend database"
+    # Restore state file silently (activation/version tracking - internal, not shown to user)
+    Copy-Verified (Join-Path $dbBackup ".clawrouter-state") (Join-Path $clawDir ".clawrouter-state") | Out-Null
+    if (Test-Path -LiteralPath (Join-Path $dbBackup "backend_clawrouter.db") -PathType Leaf) {
+        $beDir = Join-Path $clawDir "backend"
+        if (-not (Test-Path -LiteralPath $beDir)) { New-Item -ItemType Directory -Path $beDir -Force | Out-Null }
+        if (Copy-Verified (Join-Path $dbBackup "backend_clawrouter.db") (Join-Path $beDir "clawrouter.db")) {
+            if (-not (Copy-Verified (Join-Path $dbBackup "backend_clawrouter.db-wal") (Join-Path $beDir "clawrouter.db-wal"))) { $restoreOk = $false }
+            Copy-Verified (Join-Path $dbBackup "backend_clawrouter.db-shm") (Join-Path $beDir "clawrouter.db-shm") | Out-Null
+            if ($restoreOk) { Write-Success "Restored existing backend database" }
+        } else {
+            $restoreOk = $false
+        }
     }
-    Remove-Item $dbBackup -Recurse -Force -ErrorAction SilentlyContinue
+
+    if ($restoreOk) {
+        Remove-Item -LiteralPath $dbBackup -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Err "Database restore did not complete - your backup has been KEPT."
+        Write-Host ""
+        Write-Host "  Backup location (copy it somewhere safe now):"
+        Write-Host "    $dbBackup"
+        Write-Host ""
+        Write-Host "  Restore it manually with:"
+        Write-Host "    Copy-Item `"$dbBackup\clawrouter.db`" `"$clawDir\clawrouter.db`" -Force"
+        Write-Host ""
+        Write-Host "  NOTE: the temp folder may be cleaned by Windows - move the backup first."
+        Write-Host ""
+        exit 1
+    }
 }
 
 # Verify clawrouter command is available
